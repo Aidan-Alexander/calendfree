@@ -6,7 +6,7 @@ A free, open-source meeting scheduler, like Calendly, that only offers times whe
 
 It does three things the free versions of the big schedulers don't:
 
-1. **Several people's calendars.** A booking page can need any number of people to be free, not just you. Calendfree only offers times when every one of them is free. That's handy for interviews run by two colleagues, panel calls, or booking on behalf of a team. Make as many custom pages as you like.
+1. **Several people's calendars.** A booking page can need any number of people to be free, not just you: colleagues, or anyone else with a Google calendar. Calendfree only offers times when every one of them is free. That's handy for interviews run by two colleagues, panel calls, or booking on behalf of a team. Make as many custom pages as you like.
 2. **CC people.** Each page can also invite people whatever their availability. They get the calendar invite, marked as optional.
 3. **Any length, from the link.** Pages have a usual length, which you pick at setup and can change per page, and adding a number to the link books a different one: `…/interviews#75` books 75 minutes, and `#1h30` works too.
 
@@ -21,11 +21,13 @@ It also:
 
 Calendfree only ever asks Google whether a time is busy or free. It never sees what anyone's events are.
 
-For each person who must be free, Calendfree tries two ways, and the admin page shows which one works:
+To add someone to a page, edit it, choose **Others** under "Who's at the meeting", and add their name and email. For each person who must be free, Calendfree tries two ways, and the page card shows a tick for each person it can see:
 - **Through your own Google account.** If their calendar already shares free/busy with you, there's nothing for them to do. Inside a Google Workspace organisation this is usually on by default.
-- **Through their own opt-in.** If not, the admin page gives you a ready-made message with a link. They click it, sign in with Google and tick one box: "See the availability on your calendars". You can also ask them to share their free/busy with you in Google Calendar instead.
+- **Through their own opt-in.** If not, Calendfree gives you a ready-made message with a link as soon as you save the page. They click it, sign in with Google and tick one box: "See the availability on your calendars". Or they share their free/busy with you from Google Calendar; the page the link opens explains how.
 
 If Calendfree can't see someone's calendar, that page offers no times at all, rather than times they might not be free.
+
+People outside your organisation can opt in with one click only if your Google app's audience is **External** (see step 2 below). With an **Internal** app, they share their free/busy from Google Calendar instead.
 
 ## Set it up
 
@@ -57,7 +59,7 @@ Your site's address will be `https://your-scheduler.netlify.app`. You need it fo
 1. Go to [console.cloud.google.com](https://console.cloud.google.com), signed in with the Google account you'll book meetings from, and create a project called "Calendfree".
 2. Search for **Google Calendar API** and click **Enable**.
 3. Open **Google Auth Platform** and click **Get started**. Name the app "Calendfree" and pick a support email.
-   - For **Audience**, choose **Internal** if you have Google Workspace and everyone who'll connect a calendar is in your organisation. Otherwise choose **External**, then on the Audience page click **Publish app**. While an External app is still "Testing", Google cuts its access off after 7 days. A published but unverified app shows people a warning they can click past ("Advanced", then "Go to Calendfree"), for up to 100 people.
+   - For **Audience**, choose **Internal** only if you have Google Workspace and everyone you'll put on your pages is in your organisation. Otherwise (or if you're not sure) choose **External**, then on the Audience page click **Publish app**. While an External app is still "Testing", Google cuts its access off after 7 days. A published but unverified app shows people a warning they can click past ("Advanced", then "Go to Calendfree"), for up to 100 people.
 4. Under **Clients**, click **Create client** and choose **Web application**. Under **Authorised redirect URIs**, add `https://your-scheduler.netlify.app/auth/callback`. If you're not sure of the address, the sign-in page of a half-set-up Calendfree shows it.
 5. Copy the **Client ID** and **Client secret**.
 

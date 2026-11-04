@@ -63,9 +63,17 @@
         <dt>Switching off</dt><dd>Any time, at myaccount.google.com/connections.</dd>
       </dl>
       <p><a class="btn green big" href="${BASE}/auth/connect?p=${encodeURIComponent(slug)}">Share my busy times</a></p>
-      ${info.ownerEmail ? `<details class="muted small"><summary>Rather not connect anything?</summary>
-        <p>You can share instead from Google Calendar: open Settings, pick your calendar, go to “Share with specific people”,
-        add <strong>${esc(info.ownerEmail)}</strong> and choose “See only free/busy (hide details)”.</p></details>` : ''}`;
+      <p class="muted small">You'll sign in with Google and tick one box.</p>
+      <details class="muted small"><summary>If Google shows a warning</summary>
+        <p><strong>“Google hasn't verified this app”:</strong> ${who} runs their own copy of Calendfree, and Google doesn't review personal copies.
+          Click <strong>Advanced</strong>, then <strong>Go to Calendfree</strong>.</p>
+        <p><strong>“Access blocked”</strong>, or a message that the app is only for people in its organisation: this copy only lets people in ${who}'s organisation sign in.
+          Share from Google Calendar instead${info.ownerEmail ? ' (below)' : ''}.</p></details>
+      ${info.ownerEmail ? `<details class="muted small"><summary>Rather not connect anything? Share from Google Calendar instead</summary>
+        <p>In Google Calendar on a computer, open <strong>Settings</strong> (the cog), click your calendar under “Settings for my calendars”,
+        then under “Share with specific people or groups” click <strong>Add people and groups</strong>.
+        Add <strong>${esc(info.ownerEmail)}</strong>, choose <strong>See only free/busy (hide details)</strong> and click <strong>Send</strong>.</p></details>` : ''}
+      <p class="muted small">Calendfree only works with Google calendars for now. If yours is in Outlook or iCloud, let ${who} know.</p>`;
   })();
   </script>
 </body>

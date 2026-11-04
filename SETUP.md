@@ -9,10 +9,11 @@ Tell them, briefly:
 - They need a Google account whose calendar they book meetings from, and a free Netlify account (they can make one with that Google account when asked).
 - Their copy will live at an address like `their-name.netlify.app`. They can connect their own domain later.
 - It's free. Netlify's free plan covers it, as long as they don't publish dozens of updates a month.
+- Their booking pages can include other people, not just them: colleagues, or anyone else with a Google calendar. Calendfree then only offers times when everyone on the page is free. This is what makes it different from free Calendly, so make sure they know.
 
 Ask them two questions together:
 1. What should their address be called (e.g. `jo-meets`)? It becomes `jo-meets.netlify.app`.
-2. Do they use Google Workspace through their organisation, and will colleagues in that organisation be on their booking pages? This decides one setting in Google Cloud.
+2. Will other people sometimes need to be free for their meetings (a colleague who co-interviews, say)? If so, are those people all in the same Google Workspace organisation as them, or could some be outside it (another organisation, a freelancer, someone with a Gmail address)? This decides one setting in Google Cloud. If they're not sure, assume some could be outside it.
 
 ## 1. Check the tools
 
@@ -43,8 +44,8 @@ Only they can do this part, in their browser. Give them one step at a time and w
 2. In the search bar, search for **Google Calendar API**, open it and click **Enable**. Make sure the Calendfree project is still selected when they do this; it's an easy one to miss.
 3. Search for **Google Auth Platform** and open it. Click **Get started**.
    - App name: **Calendfree**. Support email: theirs. Click **Next**.
-   - Audience: if they answered yes to the Workspace question, choose **Internal**. Otherwise choose **External**. Click **Next**, add their email as the contact, agree, and click **Create**.
-   - If they chose **External**: open **Audience** in the left menu and click **Publish app**, then confirm. Otherwise Google cuts off access after 7 days.
+   - Audience: choose **Internal** only if they use Google Workspace through their organisation and everyone they'll put on their pages is in that organisation. Internal means no warning screens, but people outside the organisation can't connect their calendar with one click (they can still share their free/busy from Google Calendar). Otherwise choose **External**: anyone with a Google account can connect their calendar, after clicking past a one-off "Google hasn't verified this app" warning. Tell them which you're choosing and why in a sentence. Click **Next**, add their email as the contact, agree, and click **Create**.
+   - If they chose **External**: open **Audience** in the left menu and click **Publish app**, then confirm. Otherwise Google cuts off access after 7 days. An unverified app works for up to 100 people, which is plenty for one person's scheduler.
 4. In the left menu, open **Clients**, then **Create client**. Application type: **Web application**. Name: **Calendfree**. Under **Authorised redirect URIs**, click **Add URI** and paste `SITE/auth/callback`. Click **Create**.
 5. A box shows the **Client ID** and **Client secret**. Ask them to keep it open, or download the JSON, for the next step.
 
@@ -72,12 +73,26 @@ Ask them to open `SITE/admin/` and click **Sign in with Google**. They should le
 
 Calendfree makes their first booking page straight away. Their link is `SITE/` (their main link), and adding `#45` to it books 45 minutes.
 
-## 7. Tour and optional extras
+## 7. Meetings with other people
+
+Tell them plainly that they can do this: a page can need other people to be free too (colleagues, or anyone else with a Google calendar), and it then only offers times when they're all free and invites everyone. Then explain how:
+1. Click **New page** (or **Edit** on a page), and under "Who's at the meeting" choose **Others**.
+2. Add each person's name and email, and click **Save**.
+3. If Calendfree can't see someone's calendar, a box pops up with a ready-made message and link for each of them. They click the link and share their busy times in two clicks, or share their free/busy from Google Calendar instead; the page they land on explains both. Until then, that booking page offers no times. The page card shows a green tick for each person Calendfree can see.
+
+Good to know, and worth saying:
+- Colleagues in the same Google Workspace usually work straight away, with nothing for them to do.
+- With an External app, people see Google's "hasn't verified this app" warning when they connect. The page they land on tells them to click **Advanced**, then **Go to Calendfree**.
+- With an Internal app, people outside the organisation can't connect with one click, so they share their free/busy from Google Calendar instead.
+- Calendfree only ever sees when people are busy, never what their meetings are.
+
+Ask if there's a meeting where someone else also needs to be there (an interview with a colleague, say). If so, talk them through making that page now.
+
+## 8. Tour and optional extras
 
 Show them, briefly:
 - **Your settings:** working hours (including trips that move their hours to another time zone), booking rules (gap between meetings, notice, how far ahead), email notifications and other calendars.
 - **Email notifications:** they need the Gmail API enabled in the same Google Cloud project (search **Gmail API**, then **Enable**), then **Switch on** in Your settings.
-- **Pages with colleagues:** choose **Others** when editing a page. If Calendfree can't see a colleague's calendar, the page card offers a ready-made message with a link for them.
 - **Their own domain:** in Netlify, open the site, then **Domain management**. Add the new address as a second redirect URI in Google Cloud, and set `PUBLIC_URL` (see `.env.example`).
 - **Ideas or problems:** the "Send feedback" link at the bottom of their admin page.
 

@@ -286,6 +286,27 @@ details.more[open] summary { margin-bottom: 14px; }
 .who-others { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px 28px; align-items: start; }
 .who-mode { display: grid; gap: 14px; padding-top: 4px; }
 @media (max-width: 760px) { .who-others { grid-template-columns: 1fr; } }
+/* People as name + email rows; on phones the email goes under the name */
+.people-box { display: grid; gap: 6px; justify-items: start; }
+.people-box .hint { margin: 0; }
+.people-rows { display: grid; gap: 8px; width: 100%; margin: 4px 0; }
+.person-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 38px; gap: 8px; align-items: center; }
+.person-row input { padding: 8px 12px; font-size: 16px; }
+@media (max-width: 760px) {
+  .people-rows { gap: 16px; }
+  .person-row { grid-template-columns: minmax(0, 1fr) 38px; }
+  .person-row .p-email { grid-column: 1; grid-row: 2; }
+  .person-row .round { grid-column: 2; grid-row: 1 / span 2; }
+}
+.how-people { margin-top: 8px; font-size: 15px; color: var(--muted); }
+.how-people summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+.how-people ol { margin: 8px 0 8px 22px; padding: 0; }
+.how-people li { margin-bottom: 6px; }
+.who-me-hint { margin: 10px 0 0; }
+.tip-card { background: var(--paper); border-style: dashed; }
+.tip-card h2 { margin-bottom: 8px; }
+.invite-list { display: grid; gap: 8px; margin: 14px 0; }
+.invite-list .setting-row { flex-wrap: wrap; }
 dialog.confirm { border: 3px solid var(--ink); padding: 28px 30px 24px; max-width: 460px; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
 dialog.confirm::backdrop { background: rgba(34, 25, 15, 0.35); }
 dialog.confirm h3 { margin-bottom: 10px; }

@@ -111,6 +111,7 @@
       ${settingsCard()}
       <div class="dash-head"><h1>Your booking pages</h1><button class="btn green" data-new>New page</button></div>
       ${A.pages.map(card).join('') || '<section class="card"><p>No booking pages yet.</p></section>'}
+      ${peopleTip()}
       ${feedbackSection()}
       <footer class="foot">Ideas or problems with Calendfree? <a href="{{FEEDBACK_URL}}" target="_blank" rel="noopener">Send feedback</a></footer>`;
   }
@@ -134,8 +135,8 @@
                   <button class="btn" type="button" data-open="hours">Cancel</button></div>
               </div>`
             : `<div class="setting-row"><strong>You</strong><span>${esc(hoursNow)}</span><button class="btn sm" type="button" data-open="hours">Change</button></div>`}
-          ${colleagues().length ? `<span class="label colleagues-label">Colleagues on your pages</span>
-            <p class="hint">They're here because they're in People on one of your pages. They can set their own hours when they opt in, or you can set them here.</p>
+          ${colleagues().length ? `<span class="label colleagues-label">Other people on your pages</span>
+            <p class="hint">They're here because they're in People on one of your pages. They can set their own hours when they share their calendar, or you can set them here.</p>
             ${colleagues().map(personHours).join('')}` : ''}
         </div>
 
@@ -247,9 +248,52 @@
   }
 
   function inviteMessage(page, host) {
-    return `Hi ${first(host.name) || 'there'}, I'm using a scheduler that only offers times when we're all free. ` +
-      `Could you click this link so it can see when you're busy? It only sees busy and free times, never what your meetings are, ` +
-      `and you can switch it off any time: ${connectUrl(page.slug)}`;
+    return `Hi ${first(host.name) || 'there'}, I book meetings with a scheduler that only offers times when everyone who needs to be there is free, ` +
+      `and I've added you to one of my booking pages. Could you click this link so it can see when you're busy? ` +
+      `It only sees busy and free times, never what your meetings are, and you can switch it off any time. ` +
+      `If you'd rather not connect anything, the page also explains how to share your free/busy with me from Google Calendar instead: ${connectUrl(page.slug)}`;
+  }
+
+  // After saving a page with people Calendfree can't see yet: say so straight away, with a message to send each of them.
+  function letThemKnow(slug) {
+    const page = A.pages.find((p) => p.slug === slug);
+    const unseen = (A.statuses[slug] || []).filter((h) => !h.ok && h.email !== A.me.email);
+    if (!page || !unseen.length) return;
+    const names = unseen.map((h) => esc(first(h.name) || h.email));
+    const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+    const d = document.createElement('dialog');
+    d.className = 'confirm';
+    d.innerHTML = `<h3>One more step</h3>
+      <p>Calendfree can't see ${unseen.length > 1 ? `the calendars of ${list}` : `${list}'s calendar`} yet, so this page won't offer any times until it can.</p>
+      <p>Send ${unseen.length > 1 ? 'each of them' : list} a message with a link. They click it and share their busy times in two clicks,
+        or share their free/busy with you from Google Calendar. Calendfree only ever sees when they're busy, never what their meetings are.</p>
+      <div class="invite-list">${unseen.map((h) => `<div class="setting-row"><strong>${esc(h.name || h.email)}</strong>
+        <button class="btn sm green" data-copy="${esc(inviteMessage(page, h))}">Copy a message for ${esc(first(h.name) || 'them')}</button></div>`).join('')}</div>
+      <p class="hint">The page's card keeps these messages until Calendfree can see their calendar.
+        <a href="${esc(connectUrl(slug))}" target="_blank" rel="noopener">See the page they'll get</a></p>
+      <div class="actions"><button class="btn" value="close">Done</button></div>`;
+    document.body.appendChild(d);
+    d.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.copy) return copyText(b.dataset.copy, b);
+      d.close();
+      d.remove();
+    });
+    d.addEventListener('cancel', () => d.remove());
+    d.showModal();
+  }
+
+  // Until someone has a page with other people on it, say that they can, with a button that starts one.
+  function peopleTip() {
+    if (A.pages.some((p) => p.hosts.some((h) => h.email !== A.me.email)) || local.get('calendfree.peopleTip')) return '';
+    return `<section class="card tip-card">
+        <h2>Meetings with other people</h2>
+        <p>A booking page can need other people to be free too: a co-interviewer, a colleague, or anyone else with a Google calendar.
+          Calendfree then only offers times when you're all free, and invites everyone.</p>
+        <div class="actions"><button class="btn green" data-new-others>Make a page with other people</button>
+          <button class="btn" data-tip-hide>Not now</button></div>
+      </section>`;
   }
 
   function card(p) {
@@ -263,9 +307,10 @@
         ? `<p class="notice small">Calendfree can't read your own calendar, so this page offers no times.
             ${String(h.reason || '').length > 20 ? `Google said: “${esc(h.reason)}”` : `<a href="${BASE}/auth/login?consent=1">Sign in again</a>.`}</p>`
         : `<div class="notice small"><p><strong>Calendfree can't see ${esc(h.name || h.email)}'s calendar yet,</strong> so this page won't offer any times.
-            Send them the opt-in link: it takes them two clicks.</p>
+            Send ${esc(first(h.name) || 'them')} this message. They click the link and share their busy times in two clicks, or share their free/busy with you from Google Calendar.</p>
             <div class="actions"><button class="btn sm" data-copy="${esc(inviteMessage(p, h))}">Copy a message for ${esc(first(h.name) || 'them')}</button>
-            <button class="btn sm" data-copy="${esc(connectUrl(p.slug))}">Copy just the link</button></div></div>`,
+            <button class="btn sm" data-copy="${esc(connectUrl(p.slug))}">Copy just the link</button>
+            <a class="linkish small" href="${esc(connectUrl(p.slug))}" target="_blank" rel="noopener">See the page they'll get</a></div></div>`,
     ).join('');
     const warnings = (st || []).flatMap((h) => h.warnings || []);
     // "Must be free: you" goes without saying, so only list people when there's someone else.
@@ -340,8 +385,22 @@
               <label><input type="radio" name="who" value="me"><span>Just me</span></label>
               <label><input type="radio" name="who" value="others"><span>Others</span></label>
             </div>
+            <p class="hint who-me-hint">Need someone else there too? Choose Others and add them: a colleague, or anyone else with a Google calendar. Calendfree then only offers times when you're all free.</p>
             <div class="who-others">
-              <label class="field">People <span class="hint">One per line, like <code>Jo Smith &lt;jo@example.org&gt;</code>. You're on the list; remove yourself if you won't be there.</span><textarea name="hosts" rows="5"></textarea></label>
+              <div class="people-box">
+                <span class="label">People</span>
+                <p class="hint">Colleagues, or anyone else with a Google calendar. You're on the list; remove yourself if you won't be there.</p>
+                <div class="people-rows"></div>
+                <button type="button" class="linkish" data-row-add>+ Add a person</button>
+                <details class="how-people"${p.hosts.some((h) => h.email !== A.me.email) ? '' : ' open'}><summary>How adding someone works</summary>
+                  <ol>
+                    <li>Add their name and email, then save the page.</li>
+                    <li>Calendfree checks whether it can see their calendar. People in the same Google Workspace as you usually work straight away.</li>
+                    <li>If it can't, you get a short message with a link to send them. They click it and share their busy times, or share their free/busy with you from Google Calendar. Until then, the page offers no times.</li>
+                  </ol>
+                  <p>Calendfree only ever sees when people are busy, never what their meetings are.</p>
+                </details>
+              </div>
               <div class="who-mode">
                 <label class="check"><input type="radio" name="mode" value="all"> <span>Everyone listed <span class="hint">Times only show when they're all free, and they're all invited.</span></span></label>
                 <label class="check"><input type="radio" name="mode" value="any"> <span>Any one of them (round robin) <span class="hint">Times show when at least one is free. Each booking goes to whoever's free and has had the fewest, and only they're invited.</span></span></label>
@@ -429,9 +488,11 @@
     set('slug', p.slug);
     set('description', p.description);
     for (const r of f.querySelectorAll('input[name=mode]')) r.checked = r.value === (p.mode || 'all');
-    const others = p.hosts.some((h) => h.email !== A.me.email);
+    const others = A.editing.others || p.hosts.some((h) => h.email !== A.me.email);
     for (const r of f.querySelectorAll('input[name=who]')) r.checked = r.value === (others ? 'others' : 'me');
-    set('hosts', p.hosts.map(personLine).join('\n'));
+    const people = p.hosts.length ? p.hosts : [{ email: A.me.email, name: A.me.name }];
+    // A page that's just you starts "Others" with an empty row to fill in.
+    setRows(f, people.some((h) => h.email !== A.me.email) ? people : [...people, {}]);
     set('cc', p.cc.map(personLine).join('\n'));
     const lengths = [p.defaultDuration, ...(p.durations || []).filter((n) => n !== p.defaultDuration)].slice(0, 5);
     for (let i = 0; i < 5; i++) set(`len${i}`, lengths[i] ?? '');
@@ -473,7 +534,7 @@
       for (const [d] of DAYS) hours[d] = f.elements[`on-${d}`].checked ? [v(`from-${d}`), v(`to-${d}`)] : null;
     }
     const justMe = f.querySelector('input[name=who]:checked')?.value !== 'others';
-    const hosts = justMe ? myLine() : v('hosts');
+    const hosts = justMe ? myLine() : rowsToText(f);
     return {
       page: {
         title: v('title'), slug: v('slug').trim().toLowerCase(), description: v('description'),
@@ -530,6 +591,32 @@
 
   const myLine = () => (A.me.name ? `${A.me.name} <${A.me.email}>` : A.me.email);
 
+  // People are rows of name + email, sent to the server as "Name <email>" lines.
+  const personRow = (h = {}) => `<div class="person-row">
+      <input type="text" class="p-name" placeholder="Name" aria-label="Name" maxlength="80" value="${esc(h.name || '')}">
+      <input type="email" class="p-email" placeholder="name@example.org" aria-label="Email address" value="${esc(h.email || '')}">
+      <button type="button" class="btn round sm" data-row-del aria-label="Remove this person" title="Remove">×</button>
+    </div>`;
+  const setRows = (f, people) => {
+    f.querySelector('.people-rows').innerHTML = people.map(personRow).join('');
+  };
+  function rowsToText(f) {
+    return [...f.querySelectorAll('.person-row')].map((r) => {
+      const name = r.querySelector('.p-name').value.trim();
+      const email = r.querySelector('.p-email').value.trim();
+      return name && email ? `${name} <${email}>` : email || name;
+    }).filter(Boolean).join('\n');
+  }
+  // Pasting "Jo Smith <jo@example.org>", or several addresses, into an email box fills in rows for them.
+  function splitPasted(input) {
+    const found = parseLines(input.value).filter((x) => x.email.includes('@'));
+    if (!found.length || (found.length === 1 && !found[0].name && found[0].email === input.value.trim())) return;
+    const row = input.closest('.person-row');
+    input.value = found[0].email;
+    if (found[0].name && !row.querySelector('.p-name').value.trim()) row.querySelector('.p-name').value = found[0].name;
+    row.insertAdjacentHTML('afterend', found.slice(1).map(personRow).join(''));
+  }
+
   // Saving a page without yourself in People: make sure that's on purpose.
   function confirmNotAttending(inCc) {
     return new Promise((resolve) => {
@@ -558,6 +645,7 @@
   function showWho(f, ccOpen = false) {
     const others = f.querySelector('input[name=who]:checked')?.value === 'others';
     f.querySelector('.who-others').hidden = !others;
+    f.querySelector('.who-me-hint').hidden = others;
     const showCc = others || ccOpen || Boolean(f.elements.cc.value.trim());
     f.querySelector('.cc-box').hidden = !showCc;
     f.querySelector('.cc-add').hidden = showCc;
@@ -615,6 +703,23 @@
       el.form.elements.cc.focus();
       return;
     }
+    if ('rowAdd' in d) {
+      const rows = el.form.querySelector('.people-rows');
+      rows.insertAdjacentHTML('beforeend', personRow());
+      rows.lastElementChild.querySelector('.p-name').focus();
+      return;
+    }
+    if ('rowDel' in d) {
+      const rows = el.closest('.people-rows');
+      el.closest('.person-row').remove();
+      if (!rows.children.length) rows.insertAdjacentHTML('beforeend', personRow());
+      return;
+    }
+    if ('tipHide' in d) {
+      local.set('calendfree.peopleTip', '1');
+      render();
+      return;
+    }
     if ('hoursSave' in d) return saveHours(el.closest('[data-hours-for]'));
     if ('hoursClear' in d) {
       const box = el.closest('[data-hours-for]');
@@ -639,8 +744,8 @@
       render();
       return;
     }
-    if ('new' in d) {
-      A.editing = { page: blankPage(), originalSlug: null };
+    if ('new' in d || 'newOthers' in d) {
+      A.editing = { page: blankPage(), originalSlug: null, others: 'newOthers' in d };
       A.errors = [];
       A.flash = '';
       render();
@@ -677,8 +782,12 @@
     }
     if (e.target.name === 'who') {
       const f = e.target.form;
-      if (e.target.value === 'others' && !f.elements.hosts.value.trim()) f.elements.hosts.value = `${myLine()}\n`;
+      if (e.target.value === 'others' && !f.querySelector('.person-row')) setRows(f, [{ email: A.me.email, name: A.me.name }, {}]);
       showWho(f);
+      return;
+    }
+    if (e.target.classList.contains('p-email')) {
+      splitPasted(e.target);
       return;
     }
     if (e.target.name === 'hoursMode') {
@@ -724,6 +833,7 @@
       A.flash = `Saved “${r.page.title}”.`;
       await loadPages();
       window.scrollTo({ top: 0 });
+      letThemKnow(r.page.slug);
     } else if (e.target.id === 'rules') {
       const body = { rules: Object.fromEntries(RULE_KEYS.map((k) => [k, Number(e.target.elements[k].value)])) };
       const r = await api('/api/settings', { method: 'PUT', body });
