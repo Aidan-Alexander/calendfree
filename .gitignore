@@ -1,0 +1,7 @@
+node_modules/
+dist/
+.netlify/
+.env
+netlify/functions/api.mjs
+.DS_Store
+deno.lock

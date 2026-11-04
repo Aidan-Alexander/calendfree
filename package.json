@@ -1,0 +1,17 @@
+{
+  "name": "overlap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A free, open-source meeting scheduler that only offers times when everyone who needs to be there is free.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env scripts/build.mjs && netlify dev --offline",
+    "test": "node --test test/*.test.mjs",
+    "setup": "bash scripts/setup.sh"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^11.1.7",
+    "luxon": "^3.7.2"
+  }
+}
