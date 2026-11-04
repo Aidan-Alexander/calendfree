@@ -75,6 +75,7 @@ This asks for the client ID, the client secret, your email address and your usua
 
 - **Admin page** (`/admin/`): make, edit, duplicate and delete booking pages. Each page card shows its link, buttons to copy links for set lengths, and whether Calendfree can see each person's calendar.
 - **Main link:** one page can be your main link, shown at the site's front page.
+- **Editors:** let other people change a page too. Edit it and add their emails under "Who can edit", and Calendfree gives you a message with a link to send them. They sign in with Google, which only asks for their name and email. Bookings still go on your calendar, and only you can delete the page or change who can edit it.
 - **Your other calendars:** if you keep a second calendar (a personal one, say), share it with your work account and list it on the admin page. Its busy times then count when you're one of the people who must be free.
 - **Your settings:** working hours for each day (and trips that move them to another time zone), booking rules (a gap around other meetings, minimum notice, how far ahead people can book), email notifications and other calendars.
 - **Settings per page:** who must be free (everyone, or round robin), who's CC'd, the lengths on offer, different hours or booking rules for that page, preferred times, a daily cap, where it happens, the event title, and whether people can add guests.

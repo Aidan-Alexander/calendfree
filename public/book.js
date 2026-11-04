@@ -141,7 +141,9 @@
     const label = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
     for (let d = 1; d <= days; d++) {
       const k = `${y}-${pad(m)}-${pad(d)}`;
-      const cls = ['day', S.byDay.has(k) && 'free', k === S.day && 'on', k === today && 'today'].filter(Boolean).join(' ');
+      // With extra availability showing, a day with no preferred times at all is yellow rather than green.
+      const extraDay = extraShown() && S.byDay.has(k) && !S.byDay.get(k).some((t) => S.preferred.has(t));
+      const cls = ['day', S.byDay.has(k) && 'free', extraDay && 'extra', k === S.day && 'on', k === today && 'today'].filter(Boolean).join(' ');
       cells += S.byDay.has(k)
         ? `<button type="button" class="${cls}" data-day="${k}" aria-pressed="${k === S.day}" aria-label="${esc(label.format(new Date(Date.UTC(y, m - 1, d))))}">${d}</button>`
         : `<span class="${cls}">${d}</span>`;
@@ -159,18 +161,25 @@
       <div class="cal-grid">${cells}</div>`;
   }
 
+  // Extra availability is showing: the page has preferred times, and the guest asked to see the rest too.
+  const extraShown = () => S.showAll && S.preferred.size > 0 && S.preferred.size < S.slots.length;
+
   function times() {
     const list = S.byDay.get(S.day) || [];
     const more = S.preferred.size > 0 && S.preferred.size < S.slots.length
       ? `<p class="more"><button type="button" class="btn sm yellow" data-more>${S.showAll ? 'Show preferred times only' : 'See more availability'}</button></p>`
       : '';
-    if (!list.length) return `<h3 class="muted">Pick a green day</h3>${more}`;
-    return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>${dayView(list)}${more}`;
+    const key = extraShown()
+      ? '<p class="dv-key"><span class="swatch green" aria-hidden="true"></span>Preferred times <span class="swatch yellow" aria-hidden="true"></span>Extra availability</p>'
+      : '';
+    if (!list.length) return `<h3 class="muted">${extraShown() ? 'Pick a day' : 'Pick a green day'}</h3>${key}${more}`;
+    return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>${dayView(list)}${key}${more}`;
   }
 
   // The chosen day as a calendar: height is time. Green bands show when a meeting can happen (nothing about
   // anyone's events). Hovering previews the meeting at the nearest allowed start; clicking picks it.
-  const PX_PER_HOUR = 72;
+  // 72px an hour, taller for short meetings so a meeting is never less than 36px high (a 15-minute one fits its label).
+  const pxPerHour = () => Math.max(72, Math.round(2160 / S.duration));
   const minutesPast = (t) => Number(new Intl.DateTimeFormat('en-GB', { timeZone: S.tz, minute: '2-digit' }).format(new Date(t)));
 
   function bandsOf(starts, dur) {
@@ -188,11 +197,14 @@
     const top = list[0] - minutesPast(list[0]) * 60_000;
     const lastEnd = list[list.length - 1] + dur;
     const bottom = lastEnd + ((60 - minutesPast(lastEnd)) % 60) * 60_000;
-    const y = (t) => ((t - top) / 3_600_000) * PX_PER_HOUR;
+    const px = pxPerHour();
+    const y = (t) => ((t - top) / 3_600_000) * px;
     const range = (t) => `${fmtTime(t, S.tz)} – ${fmtTime(t + dur, S.tz)}`;
     const parts = [];
     for (let h = top; h <= bottom; h += 3_600_000) {
       parts.push(`<div class="dv-hour" style="top:${y(h)}px"><span>${esc(fmtTime(h, S.tz))}</span></div>`);
+      // On the taller scale, a faint half-hour line helps place short meetings.
+      if (px >= 120 && h < bottom) parts.push(`<div class="dv-hour dv-half" style="top:${y(h + 1_800_000)}px"></div>`);
     }
     // A band with room for several starts invites you to choose; a band with just one shows that slot.
     const pick = list.includes(S.pick) ? S.pick : null;
@@ -201,12 +213,24 @@
       const starts = list.filter((t) => t >= b.s && t + dur <= b.e);
       const text = starts.length > 1 ? (touch ? 'Tap to choose a slot' : 'Hover to choose a slot') : range(starts[0]);
       const picked = pick != null && pick >= b.s && pick < b.e;
-      parts.push(`<div class="dv-band${picked ? ' has-pick' : ''}" style="top:${y(b.s)}px;height:${y(b.e) - y(b.s)}px"><span class="dv-band-text">${esc(text)}</span></div>`);
+      // Each stretch of a band takes the colour of the start time you'd get there: green if preferred, yellow if extra.
+      const extra = [];
+      if (extraShown()) {
+        starts.forEach((s, i) => {
+          if (S.preferred.has(s)) return;
+          const e = starts[i + 1] ?? b.e;
+          const last = extra[extra.length - 1];
+          if (last && last.e === s) last.e = e;
+          else extra.push({ s, e });
+        });
+      }
+      const shading = extra.map((r) => `<span class="dv-extra" style="top:${y(r.s) - y(b.s)}px;height:${y(r.e) - y(r.s)}px"></span>`).join('');
+      parts.push(`<div class="dv-band${picked ? ' has-pick' : ''}" style="top:${y(b.s)}px;height:${y(b.e) - y(b.s)}px">${shading}<span class="dv-band-text">${esc(text)}</span></div>`);
     }
     parts.push('<div class="dv-ghost" hidden></div>');
     if (pick) parts.push(`<div class="dv-pick" style="top:${y(pick)}px;height:${y(pick + dur) - y(pick)}px">${esc(range(pick))}</div>`);
     return `
-      <div class="dv-scroll"><div class="dayview" style="height:${y(bottom)}px" data-top="${top}" data-dur="${dur}" data-starts="${list.join(',')}">${parts.join('')}</div></div>
+      <div class="dv-scroll"><div class="dayview" style="height:${y(bottom)}px" data-top="${top}" data-dur="${dur}" data-px="${px}" data-starts="${list.join(',')}">${parts.join('')}</div></div>
       <div class="dv-actions">${pick
         ? `<button type="button" class="btn green" data-slot="${pick}">Continue with ${esc(range(pick))}</button>`
         : ''}</div>
@@ -218,7 +242,7 @@
     const top = Number(dv.dataset.top);
     const dur = Number(dv.dataset.dur);
     const starts = dv.dataset.starts.split(',').map(Number);
-    const t = top + ((e.clientY - dv.getBoundingClientRect().top) / PX_PER_HOUR) * 3_600_000;
+    const t = top + ((e.clientY - dv.getBoundingClientRect().top) / Number(dv.dataset.px)) * 3_600_000;
     const band = bandsOf(starts, dur).find((b) => t >= b.s && t <= b.e);
     if (!band) return null;
     const inBand = starts.filter((s) => s >= band.s && s + dur <= band.e);
@@ -382,8 +406,9 @@
     const top = Number(dv.dataset.top);
     const dur = Number(dv.dataset.dur);
     ghost.hidden = false;
-    ghost.style.top = `${((t - top) / 3_600_000) * PX_PER_HOUR}px`;
-    ghost.style.height = `${(dur / 3_600_000) * PX_PER_HOUR}px`;
+    const px = Number(dv.dataset.px);
+    ghost.style.top = `${((t - top) / 3_600_000) * px}px`;
+    ghost.style.height = `${(dur / 3_600_000) * px}px`;
     ghost.textContent = `${fmtTime(t, S.tz)} – ${fmtTime(t + dur, S.tz)}`;
   });
   view.addEventListener('pointerout', (e) => {

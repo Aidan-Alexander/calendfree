@@ -2,7 +2,7 @@
 (() => {
   const app = document.getElementById('app');
   const A = {
-    me: null, pages: [], home: '', statuses: {}, editing: null, errors: [], flash: '',
+    me: null, pages: [], editable: [], home: '', statuses: {}, editing: null, errors: [], flash: '',
     open: { hours: false, rules: false, calendars: false, person: null }, // settings sections being changed
     feedback: null, // { enabled, ideas, bugs } when this copy hosts the feedback board
   };
@@ -13,10 +13,17 @@
   const shortUrl = (u) => u.replace(/^https?:\/\//, '');
   const connectUrl = (slug) => `${appUrl}/connect/?p=${encodeURIComponent(slug)}`;
   const first = (name) => String(name || '').trim().split(/\s+/)[0];
+  // Pages you own, and pages someone has made you an editor of.
+  const findPage = (slug) => [...A.pages, ...A.editable].find((p) => p.slug === slug);
+  const isMine = (p) => !p.owner || p.owner === A.me.email;
+  const ownerFirst = (p) => first(p.ownerName) || 'the owner';
+  const rulesOf = (p) => (isMine(p) ? A.me.rules : p.ownerRules);
+  const editorSignIn = () => `${appUrl}/admin/?editor=1`;
   const minutesList = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}` : String(list[0] || ''));
 
   const SIGN_IN_ERRORS = {
     not_allowed: (email) => `${email} isn't on the list of people who can make booking pages. Add it to ADMIN_EMAILS in your Netlify settings, then try again.`,
+    not_editor: (email) => `${email} isn't an editor of any booking page here. Sign in with the Google account whose address you were added with, or check with the person who sent you the link.`,
     scopes: () => 'Google asked which calendar permissions to give, and one was unticked. Calendfree needs both: one to check free times, one to add bookings to your calendar. Please sign in again and leave them ticked.',
     expired: () => 'That sign-in took too long. Please try again.',
     cancelled: () => 'Sign-in was cancelled.',
@@ -29,6 +36,7 @@
   const params = new URLSearchParams(location.search);
   const signInError = params.get('error') ? (SIGN_IN_ERRORS[params.get('error')] || (() => 'Sign-in failed. Please try again.'))(params.get('email') || 'That account') : '';
   const emailsJustOn = params.get('emails') === 'on';
+  const editorInvite = params.get('editor') === '1' || params.get('error') === 'not_editor';
   if (location.search) history.replaceState(null, '', location.pathname);
 
   async function boot() {
@@ -47,9 +55,10 @@
   async function loadPages() {
     const r = await api(`/api/pages?tz=${encodeURIComponent(browserTz)}`);
     A.pages = r.pages || [];
+    A.editable = r.editable || [];
     A.home = r.homeSlug || '';
     render();
-    await Promise.all([...A.pages.map((p) => loadStatus(p.slug)), loadFeedback()]);
+    await Promise.all([...[...A.pages, ...A.editable].map((p) => loadStatus(p.slug)), loadFeedback()]);
   }
 
   async function loadFeedback() {
@@ -79,6 +88,17 @@
         </section>`;
       return;
     }
+    if (editorInvite) {
+      app.innerHTML = `
+        <section class="card"><span class="tape"></span>
+          <h1>Edit a booking page</h1>
+          <p class="lede">Someone has made you an editor of their booking page. Sign in with Google to change it.</p>
+          ${signInError ? `<p class="error">${esc(signInError)}</p>` : ''}
+          <p><a class="btn green big" href="${BASE}/auth/login?editor=1">Sign in with Google</a></p>
+          <p class="muted small">Use the Google account whose address they added. Calendfree only asks for your name and email address, and doesn't touch your calendar.</p>
+        </section>`;
+      return;
+    }
     app.innerHTML = `
       <section class="card"><span class="tape"></span>
         <h1>Your booking pages</h1>
@@ -86,6 +106,7 @@
         ${signInError ? `<p class="error">${esc(signInError)}</p>` : ''}
         <p><a class="btn green big" href="${BASE}/auth/login">Sign in with Google</a></p>
         <p class="muted small">Calendfree asks to see when you're busy and to add bookings to your calendar. It never reads what your events are.</p>
+        <p class="muted small">Here to change a page someone has shared with you? <a href="${BASE}/admin/?editor=1">Sign in as an editor</a>.</p>
       </section>`;
   }
 
@@ -99,21 +120,35 @@
         <span class="muted small grow">${esc(A.me.email)}</span>
         <a class="btn sm" href="${BASE}/auth/logout">Sign out</a>
       </header>
-      ${A.me.connected ? '' : `<p class="error">Calendfree can't reach your Google Calendar any more. <a href="${BASE}/auth/login?consent=1">Sign in again</a> to fix it.</p>`}
+      ${calendarBanner()}
       ${A.flash ? `<p class="notice">${esc(A.flash)}</p>` : ''}`;
     if (A.editing) {
       app.innerHTML = top + editor();
       fillEditor();
       return;
     }
+    const m = A.me;
     app.innerHTML = `${top}
-      <h1 class="section-title">Your settings</h1>
-      ${settingsCard()}
-      <div class="dash-head"><h1>Your booking pages</h1><button class="btn green" data-new>New page</button></div>
-      ${A.pages.map(card).join('') || '<section class="card"><p>No booking pages yet.</p></section>'}
-      ${peopleTip()}
+      ${m.canCreate ? `
+        <h1 class="section-title">Your settings</h1>
+        ${settingsCard()}
+        <div class="dash-head"><h1>Your booking pages</h1><button class="btn green" data-new>New page</button></div>
+        ${A.pages.map(card).join('') || '<section class="card"><p>No booking pages yet.</p></section>'}
+        ${peopleTip()}` : ''}
+      ${A.editable.length || !m.canCreate ? `
+        <div class="dash-head"><h1>Pages you can edit</h1></div>
+        <p class="muted dash-lede">Other people's booking pages that they've made you an editor of. Bookings go on their calendars.</p>
+        ${A.editable.map(card).join('') || "<section class=\"card\"><p>Nobody has made you an editor of a page yet, or they've taken you off.</p></section>"}` : ''}
       ${feedbackSection()}
       <footer class="foot">Ideas or problems with Calendfree? <a href="{{FEEDBACK_URL}}" target="_blank" rel="noopener">Send feedback</a></footer>`;
+  }
+
+  // A broken calendar connection is an error; never having connected (an editor) is fine, or a nudge for admins.
+  function calendarBanner() {
+    const m = A.me;
+    if (m.connected) return '';
+    if (m.everConnected) return `<p class="error">Calendfree can't reach your Google Calendar any more. <a href="${BASE}/auth/login?consent=1">Sign in again</a> to fix it.</p>`;
+    return m.canCreate ? `<p class="notice">To make booking pages of your own, <a href="${BASE}/auth/login">connect your Google Calendar</a>.</p>` : '';
   }
 
   // ----- Settings: working hours, email notifications, other calendars -----
@@ -248,29 +283,42 @@
   }
 
   function inviteMessage(page, host) {
-    return `Hi ${first(host.name) || 'there'}, I book meetings with a scheduler that only offers times when everyone who needs to be there is free, ` +
-      `and I've added you to one of my booking pages. Could you click this link so it can see when you're busy? ` +
+    const intro = isMine(page)
+      ? "I book meetings with a scheduler that only offers times when everyone who needs to be there is free, and I've added you to one of my booking pages."
+      : `${ownerFirst(page)} books meetings with a scheduler that only offers times when everyone who needs to be there is free, and you're on one of their booking pages.`;
+    return `Hi ${first(host.name) || 'there'}, ${intro} Could you click this link so it can see when you're busy? ` +
       `It only sees busy and free times, never what your meetings are, and you can switch it off any time. ` +
       `If you'd rather not connect anything, the page also explains how to share your free/busy with me from Google Calendar instead: ${connectUrl(page.slug)}`;
   }
 
-  // After saving a page with people Calendfree can't see yet: say so straight away, with a message to send each of them.
-  function letThemKnow(slug) {
-    const page = A.pages.find((p) => p.slug === slug);
-    const unseen = (A.statuses[slug] || []).filter((h) => !h.ok && h.email !== A.me.email);
-    if (!page || !unseen.length) return;
+  function editorMessage(page, email) {
+    return `Hi, I've made you an editor of my booking page "${page.title}" (${pageUrl(page.slug)}), so you can change it too. ` +
+      `Sign in with your Google account (${email}) here: ${editorSignIn()} It only asks for your name and email address, not your calendar.`;
+  }
+
+  // After saving: if Calendfree can't see someone's calendar yet, or there are new editors, say so straight away,
+  // with a message to send each of them.
+  function letThemKnow(slug, newEditors = []) {
+    const page = findPage(slug);
+    if (!page) return;
+    const unseen = (A.statuses[slug] || []).filter((h) => !h.ok && h.email !== page.owner);
+    if (!unseen.length && !newEditors.length) return;
     const names = unseen.map((h) => esc(first(h.name) || h.email));
     const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
     const d = document.createElement('dialog');
     d.className = 'confirm';
-    d.innerHTML = `<h3>One more step</h3>
+    d.innerHTML = `${unseen.length ? `<h3>One more step</h3>
       <p>Calendfree can't see ${unseen.length > 1 ? `the calendars of ${list}` : `${list}'s calendar`} yet, so this page won't offer any times until it can.</p>
       <p>Send ${unseen.length > 1 ? 'each of them' : list} a message with a link. They click it and share their busy times in two clicks,
-        or share their free/busy with you from Google Calendar. Calendfree only ever sees when they're busy, never what their meetings are.</p>
+        or share their free/busy from Google Calendar. Calendfree only ever sees when they're busy, never what their meetings are.</p>
       <div class="invite-list">${unseen.map((h) => `<div class="setting-row"><strong>${esc(h.name || h.email)}</strong>
         <button class="btn sm green" data-copy="${esc(inviteMessage(page, h))}">Copy a message for ${esc(first(h.name) || 'them')}</button></div>`).join('')}</div>
       <p class="hint">The page's card keeps these messages until Calendfree can see their calendar.
-        <a href="${esc(connectUrl(slug))}" target="_blank" rel="noopener">See the page they'll get</a></p>
+        <a href="${esc(connectUrl(slug))}" target="_blank" rel="noopener">See the page they'll get</a></p>` : ''}
+      ${newEditors.length ? `<h3${unseen.length ? ' class="dialog-sub"' : ''}>Let your new editors know</h3>
+      <p>They can change this page once they sign in with Google. Send them this:</p>
+      <div class="invite-list">${newEditors.map((e) => `<div class="setting-row"><strong>${esc(e)}</strong>
+        <button class="btn sm green" data-copy="${esc(editorMessage(page, e))}">Copy a message</button></div>`).join('')}</div>` : ''}
       <div class="actions"><button class="btn" value="close">Done</button></div>`;
     document.body.appendChild(d);
     d.addEventListener('click', (e) => {
@@ -297,24 +345,28 @@
   }
 
   function card(p) {
-    const isHome = !A.me.shared && A.home === p.slug;
+    const mine = isMine(p);
+    const isHome = mine && !A.me.shared && A.home === p.slug;
     const url = pageUrl(p.slug);
     const shown = isHome ? `${appUrl}/` : url;
     const st = A.statuses[p.slug];
     const tags = st ? st.map(hostTag).join('') : p.hosts.map((h) => `<span class="chip">${esc(h.name || h.email)}</span>`).join('');
     const help = (st || []).filter((h) => !h.ok).map((h) =>
-      h.email === A.me.email
+      h.email === p.owner && mine
         ? `<p class="notice small">Calendfree can't read your own calendar, so this page offers no times.
             ${String(h.reason || '').length > 20 ? `Google said: “${esc(h.reason)}”` : `<a href="${BASE}/auth/login?consent=1">Sign in again</a>.`}</p>`
+        : h.email === p.owner
+        ? `<p class="notice small">Calendfree can't read ${esc(ownerFirst(p))}'s calendar, so this page offers no times. ${esc(ownerFirst(p))} needs to sign in to Calendfree again.</p>`
         : `<div class="notice small"><p><strong>Calendfree can't see ${esc(h.name || h.email)}'s calendar yet,</strong> so this page won't offer any times.
-            Send ${esc(first(h.name) || 'them')} this message. They click the link and share their busy times in two clicks, or share their free/busy with you from Google Calendar.</p>
+            Send ${esc(first(h.name) || 'them')} this message. They click the link and share their busy times in two clicks, or share their free/busy with ${mine ? 'you' : esc(ownerFirst(p))} from Google Calendar.</p>
             <div class="actions"><button class="btn sm" data-copy="${esc(inviteMessage(p, h))}">Copy a message for ${esc(first(h.name) || 'them')}</button>
             <button class="btn sm" data-copy="${esc(connectUrl(p.slug))}">Copy just the link</button>
             <a class="linkish small" href="${esc(connectUrl(p.slug))}" target="_blank" rel="noopener">See the page they'll get</a></div></div>`,
     ).join('');
     const warnings = (st || []).flatMap((h) => h.warnings || []);
     // "Must be free: you" goes without saying, so only list people when there's someone else.
-    const justMe = p.hosts.length === 1 && p.hosts[0].email === A.me.email;
+    const justMe = p.hosts.length === 1 && p.hosts[0].email === p.owner;
+    const editors = mine ? p.editors || [] : [];
     const summary = [
       p.mode === 'any' ? 'Round robin: one of them per booking' : '',
       p.hours ? 'Different hours' : '',
@@ -327,6 +379,7 @@
         <span class="tape left" aria-hidden="true"></span>
         ${isHome ? '<span class="chip yellow corner">Main link</span>' : ''}
         <div class="page-top${isHome ? ' has-corner' : ''}"><h2>${esc(p.title)}</h2></div>
+        ${mine ? '' : `<p class="summary">${esc(p.ownerName)}'s page. Bookings go on their calendar.</p>`}
         ${summary.length ? `<p class="summary">${summary.map(esc).join(' · ')}</p>` : ''}
         <div class="linkrow">
           <a class="url" href="${esc(shown)}" target="_blank" rel="noopener">${esc(shortUrl(shown))}</a>
@@ -334,16 +387,17 @@
         </div>
         <p class="len-line"><strong>${p.defaultDuration} min</strong> by default${p.durations?.length ? ` · guests can choose ${minutesList(p.durations)} min` : ''}</p>
         <p class="hint">For another length, add # and the minutes to the end of the link, like ${esc(shortUrl(url))}#75.</p>
-        ${justMe && !p.cc.length ? '' : `<div class="people">
+        ${justMe && !p.cc.length && !editors.length ? '' : `<div class="people">
           ${justMe ? '' : `<div><span class="label">${p.mode === 'any' ? 'Any one of these' : 'Must be free'}</span><div class="chips">${tags}</div></div>`}
           ${p.cc.length ? `<div><span class="label">CC'd</span><p class="plain">${p.cc.map((c) => esc(c.name || c.email)).join(', ')}</p></div>` : ''}
+          ${editors.length ? `<div><span class="label">Can edit</span><p class="plain">${editors.map(esc).join(', ')}</p></div>` : ''}
         </div>`}
         ${help}
         ${warnings.length ? `<p class="hint">${warnings.map(esc).join('. ')}.</p>` : ''}
         <div class="actions">
           <button class="btn sm" data-edit="${esc(p.slug)}">Edit</button>
-          <button class="btn sm" data-dup="${esc(p.slug)}">Duplicate</button>
-          <button class="btn sm danger" data-del="${esc(p.slug)}">Delete</button>
+          ${mine ? `<button class="btn sm" data-dup="${esc(p.slug)}">Duplicate</button>
+          <button class="btn sm danger" data-del="${esc(p.slug)}">Delete</button>` : ''}
         </div>
       </article>`;
   }
@@ -367,32 +421,36 @@
 
   function editor() {
     const { originalSlug, page: p } = A.editing;
+    const mine = isMine(p);
+    const ow = esc(ownerFirst(p)); // whose page it is, when you're editing someone else's
+    const ownerEmail = p.owner || A.me.email;
     return `
       <section class="card editor-card"><span class="tape" aria-hidden="true"></span>
         <button type="button" class="btn round close-x" data-cancel aria-label="Close without saving" title="Close without saving">×</button>
         <h2>${originalSlug ? `Edit “${esc(p.title)}”` : 'New booking page'}</h2>
+        ${mine ? '' : `<p class="hint">${esc(p.ownerName)}'s page. Bookings go on ${ow}'s calendar, and only ${ow} can delete it or change who can edit it.</p>`}
         ${A.errors.length ? `<div class="error">${A.errors.map(esc).join('<br>')}</div>` : ''}
         <form id="editor" class="form wide" novalidate>
           <div class="grid2">
             <label class="field">Title <span class="hint">Shown at the top of the page.</span><input type="text" name="title" maxlength="120" required></label>
             <label class="field">Link name <span class="hint">${esc(shortUrl(appUrl))}/<b>this-bit</b></span><input type="text" name="slug" maxlength="49" required></label>
           </div>
-          <label class="check"${A.me.shared ? ' hidden' : ''}><input type="checkbox" name="home"> <span>Make this my main link <span class="hint">${esc(shortUrl(appUrl))}/ opens this page.</span></span></label>
+          <label class="check"${A.me.shared || !mine ? ' hidden' : ''}><input type="checkbox" name="home"> <span>Make this my main link <span class="hint">${esc(shortUrl(appUrl))}/ opens this page.</span></span></label>
           <label class="field">Description <span class="hint">Optional. A line or two for the person booking.</span><textarea name="description" maxlength="2000"></textarea></label>
 
           <fieldset><legend>Who's at the meeting</legend>
             <div class="seg" role="radiogroup" aria-label="Who's at the meeting">
-              <label><input type="radio" name="who" value="me"><span>Just me</span></label>
+              <label><input type="radio" name="who" value="me"><span>${mine ? 'Just me' : `Just ${ow}`}</span></label>
               <label><input type="radio" name="who" value="others"><span>Others</span></label>
             </div>
-            <p class="hint who-me-hint">Need someone else there too? Choose Others and add them: a colleague, or anyone else with a Google calendar. Calendfree then only offers times when you're all free.</p>
+            <p class="hint who-me-hint">Need someone else there too? Choose Others and add them: a colleague, or anyone else with a Google calendar. Calendfree then only offers times when everyone's free.</p>
             <div class="who-others">
               <div class="people-box">
                 <span class="label">People</span>
-                <p class="hint">Colleagues, or anyone else with a Google calendar. You're on the list; remove yourself if you won't be there.</p>
+                <p class="hint">Colleagues, or anyone else with a Google calendar. ${mine ? "You're on the list; remove yourself if you won't be there." : `${ow} is on the list; remove them only if they won't be there.`}</p>
                 <div class="people-rows"></div>
                 <button type="button" class="linkish" data-row-add>+ Add a person</button>
-                <details class="how-people"${p.hosts.some((h) => h.email !== A.me.email) ? '' : ' open'}><summary>How adding someone works</summary>
+                <details class="how-people"${p.hosts.some((h) => h.email !== ownerEmail) ? '' : ' open'}><summary>How adding someone works</summary>
                   <ol>
                     <li>Add their name and email, then save the page.</li>
                     <li>Calendfree checks whether it can see their calendar. People in the same Google Workspace as you usually work straight away.</li>
@@ -422,12 +480,12 @@
           <fieldset><legend>When</legend>
             <span class="label">Hours</span>
             <div class="seg" role="radiogroup" aria-label="Hours">
-              <label><input type="radio" name="hoursMode" value="working"><span>Your default hours</span></label>
+              <label><input type="radio" name="hoursMode" value="working"><span>${mine ? 'Your' : `${ow}'s`} default hours</span></label>
               <label><input type="radio" name="hoursMode" value="replace"><span>Different hours</span></label>
             </div>
             <p class="hint hours-hint"></p>
             <div class="hours page-hours">
-              <p class="hint">In your time zone. They follow you when you travel.</p>
+              <p class="hint">${mine ? 'In your time zone. They follow you when you travel.' : `In ${ow}'s time zone.`}</p>
               ${DAYS.map(([d, label]) => `
               <div class="hour-row">
                 <label class="check"><input type="checkbox" name="on-${d}"> <span>${label}</span></label>
@@ -437,11 +495,11 @@
             </div>
 
             <span class="label">Booking rules</span>
-            <div class="setting-row rules-usual"><span>Your usual rules: ${esc(rulesText(A.me.rules))}.</span>
+            <div class="setting-row rules-usual"><span>${mine ? 'Your' : `${ow}'s`} usual rules: ${esc(rulesText(rulesOf(p)))}.</span>
               <button type="button" class="btn sm" data-rules-own>Change for this page</button></div>
             <div class="rules-own">
-              ${rulesFields(p.rules || A.me.rules)}
-              <button type="button" class="linkish" data-rules-usual>Use my usual rules instead</button>
+              ${rulesFields(p.rules || rulesOf(p))}
+              <button type="button" class="linkish" data-rules-usual>${mine ? 'Use my usual rules instead' : `Use ${ow}'s usual rules instead`}</button>
             </div>
             <input type="hidden" name="rulesOwn">
 
@@ -460,6 +518,12 @@
             <input type="text" name="locationText" class="location-text" placeholder="An address, a Zoom link or a phone number" maxlength="300">
             <label class="check"><input type="radio" name="location" value="none"> <span>I'll add a call link later if I need one</span></label>
           </fieldset>
+
+          ${mine ? `<fieldset><legend>Who can edit</legend>
+            <label class="field">Editors <span class="hint">People who can change this page too, separated by commas. They sign in with Google (it only asks for their name and email).
+              Bookings still go on your calendar, and only you can delete the page or change this list.</span>
+              <input type="text" name="editors" placeholder="jo@example.org, sam@example.org"></label>
+          </fieldset>` : ''}
 
           <details class="more"${A.editing.moreOpen ? ' open' : ''}><summary>More options</summary>
             <div class="form wide">
@@ -488,11 +552,13 @@
     set('slug', p.slug);
     set('description', p.description);
     for (const r of f.querySelectorAll('input[name=mode]')) r.checked = r.value === (p.mode || 'all');
-    const others = A.editing.others || p.hosts.some((h) => h.email !== A.me.email);
+    const ownerEmail = p.owner || A.me.email;
+    const others = A.editing.others || p.hosts.some((h) => h.email !== ownerEmail);
     for (const r of f.querySelectorAll('input[name=who]')) r.checked = r.value === (others ? 'others' : 'me');
     const people = p.hosts.length ? p.hosts : [{ email: A.me.email, name: A.me.name }];
-    // A page that's just you starts "Others" with an empty row to fill in.
-    setRows(f, people.some((h) => h.email !== A.me.email) ? people : [...people, {}]);
+    // A page that's just its owner starts "Others" with an empty row to fill in.
+    setRows(f, people.some((h) => h.email !== ownerEmail) ? people : [...people, {}]);
+    if (f.elements.editors) set('editors', (p.editors || []).join(', '));
     set('cc', p.cc.map(personLine).join('\n'));
     const lengths = [p.defaultDuration, ...(p.durations || []).filter((n) => n !== p.defaultDuration)].slice(0, 5);
     for (let i = 0; i < 5; i++) set(`len${i}`, lengths[i] ?? '');
@@ -534,7 +600,7 @@
       for (const [d] of DAYS) hours[d] = f.elements[`on-${d}`].checked ? [v(`from-${d}`), v(`to-${d}`)] : null;
     }
     const justMe = f.querySelector('input[name=who]:checked')?.value !== 'others';
-    const hosts = justMe ? myLine() : rowsToText(f);
+    const hosts = justMe ? ownerLine(A.editing.page) : rowsToText(f);
     return {
       page: {
         title: v('title'), slug: v('slug').trim().toLowerCase(), description: v('description'),
@@ -548,6 +614,7 @@
         preferred: f.elements.prefOn.checked ? [v('prefFrom'), v('prefTo')] : null,
         location: f.querySelector('input[name=location]:checked')?.value || 'meet', locationText: v('locationText'),
         eventTitle: v('eventTitle'), allowGuests: f.elements.allowGuests.checked,
+        editors: f.elements.editors ? v('editors') : '',
       },
       home: f.elements.home.checked,
     };
@@ -580,9 +647,11 @@
   function showWhen(f) {
     const mode = f.querySelector('input[name=hoursMode]:checked')?.value || 'working';
     f.querySelector('.page-hours').hidden = mode === 'working';
+    const p = A.editing.page;
+    const whose = isMine(p) ? 'your' : `${ownerFirst(p)}'s`;
     f.querySelector('.hours-hint').textContent = {
-      working: "Your working hours, set under Your settings.",
-      replace: "Instead of your working hours on this page: afternoons only, say, or an evening link you only give to some people. Colleagues' own working hours still apply, and calendars are always checked.",
+      working: isMine(p) ? 'Your working hours, set under Your settings.' : `${ownerFirst(p)}'s working hours, from their settings.`,
+      replace: `Instead of ${whose} working hours on this page: afternoons only, say, or an evening link you only give to some people. Other people's own working hours still apply, and calendars are always checked.`,
     }[mode];
     const own = Boolean(f.elements.rulesOwn.value);
     f.querySelector('.rules-own').hidden = !own;
@@ -590,6 +659,8 @@
   }
 
   const myLine = () => (A.me.name ? `${A.me.name} <${A.me.email}>` : A.me.email);
+  // "Just me" on someone else's page means just its owner.
+  const ownerLine = (p) => (isMine(p) ? myLine() : personLine(p.hosts.find((h) => h.email === p.owner) || { email: p.owner, name: p.ownerName }));
 
   // People are rows of name + email, sent to the server as "Name <email>" lines.
   const personRow = (h = {}) => `<div class="person-row">
@@ -751,7 +822,7 @@
       render();
       window.scrollTo({ top: 0 });
     } else if (d.edit || d.dup) {
-      const src = A.pages.find((p) => p.slug === (d.edit || d.dup));
+      const src = findPage(d.edit || d.dup);
       const page = JSON.parse(JSON.stringify(src));
       if (d.dup) {
         page.title = `${page.title} (copy)`;
@@ -817,13 +888,15 @@
     e.preventDefault();
     if (e.target.id === 'editor') {
       const { page, home } = readEditor();
-      const mine = (text) => parseLines(text).some((x) => x.email === A.me.email);
-      if (!mine(page.hosts) && !(await confirmNotAttending(mine(page.cc)))) return;
+      const editing = A.editing.page;
+      const includesMe = (text) => parseLines(text).some((x) => x.email === A.me.email);
+      if (isMine(editing) && !includesMe(page.hosts) && !(await confirmNotAttending(includesMe(page.cc)))) return;
+      const editorsBefore = new Set(editing.editors || []);
       e.target.querySelector('button[type=submit]').disabled = true;
       const r = await api('/api/pages', { method: 'PUT', body: { page, home, originalSlug: A.editing.originalSlug } });
       if (r._status !== 200) {
         A.errors = r.errors || [r.message || 'Something went wrong saving that.'];
-        A.editing = { ...A.editing, page: { ...A.editing.page, ...page, hosts: parseLines(page.hosts), cc: parseLines(page.cc), durations: String(page.durations).split(/[\s,]+/).map(Number).filter(Boolean) }, home };
+        A.editing = { ...A.editing, page: { ...editing, ...page, hosts: parseLines(page.hosts), cc: parseLines(page.cc), editors: parseLines(page.editors).map((x) => x.email), durations: String(page.durations).split(/[\s,]+/).map(Number).filter(Boolean) }, home };
         render();
         window.scrollTo({ top: 0 });
         return;
@@ -833,7 +906,7 @@
       A.flash = `Saved “${r.page.title}”.`;
       await loadPages();
       window.scrollTo({ top: 0 });
-      letThemKnow(r.page.slug);
+      letThemKnow(r.page.slug, (r.page.editors || []).filter((x) => !editorsBefore.has(x)));
     } else if (e.target.id === 'rules') {
       const body = { rules: Object.fromEntries(RULE_KEYS.map((k) => [k, Number(e.target.elements[k].value)])) };
       const r = await api('/api/settings', { method: 'PUT', body });
