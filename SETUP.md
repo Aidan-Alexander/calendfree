@@ -96,6 +96,6 @@ Each publish uses some of Netlify's free monthly allowance, so update now and th
 To run one copy for everyone at an organisation (each person signs in and makes their own pages), set these in Netlify (Site configuration, then Environment variables) and publish again:
 - `ALLOWED_DOMAINS=example.org` (comma-separate several domains)
 - `SHARED_SITE=1` (no single person's page takes over the front page)
-- `SITE_NAME=Example Org` (optional, shown on the front page)
+- `ORG_NAME=Example Org` (optional, shown on the front page)
 
 Use an **Internal** Google app so everyone in the organisation can sign in without warnings.

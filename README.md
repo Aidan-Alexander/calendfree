@@ -43,7 +43,7 @@ You need a free [Netlify](https://www.netlify.com) account, a Google account wit
 
 ```bash
 git clone https://github.com/Aidan-Alexander/calendfree.git
-cd overlap
+cd calendfree
 npm install
 npm install -g netlify-cli
 netlify login
@@ -74,7 +74,8 @@ This asks for the client ID, the client secret, your email address and your usua
 - **Admin page** (`/admin/`): make, edit, duplicate and delete booking pages. Each page card shows its link, buttons to copy links for set lengths, and whether Calendfree can see each person's calendar.
 - **Main link:** one page can be your main link, shown at the site's front page.
 - **Your other calendars:** if you keep a second calendar (a personal one, say), share it with your work account and list it on the admin page. Its busy times then count when you're one of the people who must be free.
-- **Settings per page:** who must be free, who's CC'd, usual and longest lengths, working hours and time zone, start-time steps, a gap around other meetings, minimum notice, how far ahead people can book, where it happens, the event title, and whether people can add guests.
+- **Your settings:** working hours for each day (and trips that move them to another time zone), booking rules (a gap around other meetings, minimum notice, how far ahead people can book), email notifications and other calendars.
+- **Settings per page:** who must be free (everyone, or round robin), who's CC'd, the lengths on offer, different hours or booking rules for that page, preferred times, a daily cap, where it happens, the event title, and whether people can add guests.
 
 ## Putting it under a path on another site
 
@@ -103,7 +104,7 @@ With `OVERLAP_FAKE_GOOGLE=1` (the default in `.env.example`), calendars are made
 - **Costs:** none. Netlify's free plan and Google's APIs cover it. Data lives in Netlify Blobs: booking pages, bookings, and people's Google connections. The connections are encrypted with `APP_SECRET`.
 - **Keep `APP_SECRET` forever.** Changing it signs everyone out and drops the saved calendar connections.
 - **Bookings are made on the page owner's calendar**, and the owner is the organiser. People who must be free and people who are CC'd are invited.
-- **Working hours are per page**, in the page's time zone. Each person's own busy blocks still count wherever they are.
+- **Working hours are per person**, in their own time zone. A page can swap in different hours for you; the other people on it keep theirs.
 - **Google only, for now.** Outlook and iCloud calendars aren't supported. Pull requests are welcome.
 - **Who sees what:** anyone with a page's link sees its free times and the first names of the people on it. Never email addresses, never event details.
 
