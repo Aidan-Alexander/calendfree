@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Feedback · Calendfree</title>
+<meta name="description" content="Suggest ideas, vote on them, or report a problem with Calendfree.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗓️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{BASE}}/style.css">
+</head>
+<body>
+  <main class="wrap narrow">
+    <section class="card"><span class="tape" aria-hidden="true"></span><div id="view"><p class="loading">Loading</p></div></section>
+    <footer class="foot"><a href="https://github.com/Aidan-Alexander/calendfree">Calendfree</a> is free and open source.</footer>
+  </main>
+  <script src="{{BASE}}/ui.js"></script>
+  <script>
+  (async () => {
+    const view = document.getElementById('view');
+    // A random id per browser, so each browser gets one vote per idea. No sign-in needed.
+    let voter = local.get('calendfree.voter');
+    if (!voter) {
+      voter = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(16).padStart(2, '0')).join('');
+      local.set('calendfree.voter', voter);
+    }
+    const voted = new Set(JSON.parse(local.get('calendfree.voted') || '[]'));
+    const saveVoted = () => local.set('calendfree.voted', JSON.stringify([...voted]));
+    const S = { tab: location.hash === '#problem' ? 'problem' : 'ideas', ideas: [], message: '', error: '' };
+
+    const data = await api('/api/public/feedback');
+    if (!data.enabled) {
+      view.innerHTML = `<h1>Feedback</h1><p class="lede">Feedback for Calendfree is collected in one place:</p>
+        <p><a class="btn green" href="{{FEEDBACK_URL}}">Go to the feedback board</a></p>`;
+      return;
+    }
+    S.ideas = data.ideas;
+
+    const STATUS = { planned: '<span class="chip blue">Planned</span>', done: '<span class="chip green">Done</span>' };
+    function ideasView() {
+      return `
+        <form class="form wide" id="idea" novalidate>
+          <label class="field">Your idea <span class="hint">A few words, like "Let people book two meetings at once".</span><input type="text" name="title" maxlength="120"></label>
+          <label class="field">More detail <span class="hint">Optional. Why it would help you.</span><textarea name="details" maxlength="2000" rows="3"></textarea></label>
+          <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div><button class="btn green" type="submit">Add idea</button></div>
+        </form>
+        <h3 class="ideas-title">Ideas so far</h3>
+        ${S.ideas.length ? `<div class="ideas">${S.ideas.map((i) => `
+          <div class="idea">
+            <button type="button" class="btn sm vote${voted.has(i.id) ? ' on' : ''}" data-vote="${esc(i.id)}" aria-pressed="${voted.has(i.id)}" title="${voted.has(i.id) ? 'Take back your vote' : 'I want this too'}">▲ ${i.votes}</button>
+            <div><strong>${esc(i.title)}</strong> ${STATUS[i.status] || ''}${i.details ? `<p class="muted small">${esc(i.details)}</p>` : ''}</div>
+          </div>`).join('')}</div>` : '<p class="muted">No ideas yet. Be the first.</p>'}`;
+    }
+
+    function problemView() {
+      return `
+        <p class="muted">Problem reports are private: only the person who looks after Calendfree sees them.</p>
+        <form class="form wide" id="problem" novalidate>
+          <label class="field">What went wrong? <span class="hint">What you did, what you expected, and what happened instead.</span><textarea name="text" maxlength="4000" rows="5"></textarea></label>
+          <label class="field">Your email <span class="hint">Optional, if you'd like a reply.</span><input type="email" name="contact"></label>
+          <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div><button class="btn green" type="submit">Send report</button></div>
+        </form>`;
+    }
+
+    function render() {
+      view.innerHTML = `
+        <h1>Help shape Calendfree</h1>
+        <p class="lede">Suggest an idea or vote for the ones you want most, so the most wanted rise to the top. No sign-in needed.</p>
+        <div class="seg" role="tablist" aria-label="Feedback">
+          <label><input type="radio" name="tab" value="ideas"${S.tab === 'ideas' ? ' checked' : ''}><span>Ideas</span></label>
+          <label><input type="radio" name="tab" value="problem"${S.tab === 'problem' ? ' checked' : ''}><span>Report a problem</span></label>
+        </div>
+        ${S.message ? `<p class="notice">${esc(S.message)}</p>` : ''}
+        ${S.error ? `<p class="error">${esc(S.error)}</p>` : ''}
+        <div class="feedback-body">${S.tab === 'ideas' ? ideasView() : problemView()}</div>`;
+    }
+
+    view.addEventListener('change', (e) => {
+      if (e.target.name !== 'tab') return;
+      S.tab = e.target.value;
+      S.message = S.error = '';
+      history.replaceState(null, '', S.tab === 'problem' ? '#problem' : location.pathname);
+      render();
+    });
+
+    view.addEventListener('click', async (e) => {
+      const b = e.target.closest('[data-vote]');
+      if (!b) return;
+      b.disabled = true;
+      const r = await api('/api/public/feedback/vote', { method: 'POST', body: { id: b.dataset.vote, voter } });
+      if (r.ok) {
+        const idea = S.ideas.find((i) => i.id === b.dataset.vote);
+        idea.votes = r.votes;
+        if (r.voted) voted.add(idea.id);
+        else voted.delete(idea.id);
+        saveVoted();
+        S.error = '';
+      } else S.error = r.message || 'That vote didn’t count. Please try again.';
+      render();
+    });
+
+    view.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const f = e.target;
+      const v = Object.fromEntries(new FormData(f));
+      f.querySelector('button[type=submit]').disabled = true;
+      if (f.id === 'idea') {
+        const r = await api('/api/public/feedback/idea', { method: 'POST', body: { ...v, voter } });
+        if (r.ok && r.idea) {
+          S.ideas.push(r.idea);
+          voted.add(r.idea.id);
+          saveVoted();
+          S.message = 'Thanks! Your idea is on the list, with your vote.';
+          S.error = '';
+        } else if (r.ok) S.message = 'Thanks!';
+        else S.error = r.message || 'That didn’t send. Please try again.';
+      } else {
+        const r = await api('/api/public/feedback/bug', { method: 'POST', body: { ...v, page: document.referrer } });
+        if (r.ok) {
+          S.message = "Thanks, that's been sent. If you left your email, you may hear back.";
+          S.error = '';
+        } else S.error = r.message || 'That didn’t send. Please try again.';
+      }
+      render();
+    });
+
+    render();
+  })();
+  </script>
+</body>
+</html>

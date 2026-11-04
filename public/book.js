@@ -2,7 +2,7 @@
 (() => {
   const view = document.getElementById('view');
   const S = {
-    slug: decodeURIComponent(location.pathname.slice(BASE.length)).replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase(),
+    slug: '',
     page: null,
     duration: 25,
     slots: [],
@@ -18,7 +18,12 @@
     formError: '',
     values: {},
     result: null,
+    preferred: new Set(), // start times inside the page's preferred hours
+    showAll: false,
+    pick: null, // the start chosen in the day view
   };
+
+  S.slug = decodeURIComponent(location.pathname.slice(BASE.length)).replace(/^\/+|\/+$/g, '').split('/')[0].toLowerCase();
 
   const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const validTz = (tz) => {
@@ -48,7 +53,9 @@
   function group() {
     const f = keyFormat();
     S.byDay = new Map();
-    for (const t of S.slots) {
+    // Preferred times first, when the page has some free but not all of them are preferred.
+    const narrowed = !S.showAll && S.preferred.size > 0 && S.preferred.size < S.slots.length;
+    for (const t of narrowed ? S.slots.filter((x) => S.preferred.has(x)) : S.slots) {
       const k = f.format(new Date(t));
       if (!S.byDay.has(k)) S.byDay.set(k, []);
       S.byDay.get(k).push(t);
@@ -60,7 +67,7 @@
   async function boot() {
     const p = await api(`/api/public/page?slug=${encodeURIComponent(S.slug)}`);
     document.getElementById('boot').remove();
-    if (p.error === 'not_found') return p.home ? landing() : missing();
+    if (p.error === 'not_found') return p.home ? landing(p) : missing();
     if (p._status !== 200) return message('Something went wrong', 'Please refresh the page to try again.');
     S.page = p;
     document.title = p.title;
@@ -85,6 +92,8 @@
     S.loading = false;
     S.error = r.error === 'not_ready' ? 'not_ready' : r._status === 200 ? '' : 'failed';
     S.slots = r.slots || [];
+    S.pick = null;
+    S.preferred = new Set(r.preferred || []);
     if (r.duration) S.duration = r.duration;
     group();
     render();
@@ -96,18 +105,28 @@
     const p = S.page;
     const chips = [
       `<span class="chip yellow">${esc(fmtDuration(S.duration))}</span>`,
-      p.with.length ? `<span class="chip blue">with ${esc(joinNames(p.with))}</span>` : '',
+      p.with.length ? `<span class="chip blue">with ${esc(p.mode === 'any' ? joinOr(p.with) : joinNames(p.with))}</span>` : '',
       p.location ? `<span class="chip green">${esc(p.location)}</span>` : '',
     ].join('');
     return `
       ${p.demo ? '<p class="notice small">This is a demo with made-up people and calendars. Nothing gets booked.</p>' : ''}
       <h1>${esc(p.title)}</h1>
       <div class="chips">${chips}</div>
-      ${p.description ? `<p class="lede">${esc(p.description)}</p>` : ''}`;
+      ${p.description ? `<p class="lede">${esc(p.description)}</p>` : ''}
+      ${lengthPicker()}`;
+  }
+
+  // Lengths the guest can choose between, when the page offers them.
+  function lengthPicker() {
+    const options = S.page.durations || [];
+    if (options.length < 2 || S.step !== 'pick') return '';
+    const all = options.includes(S.duration) ? options : [...options, S.duration].sort((a, b) => a - b);
+    return `<div class="lengths-pick"><span class="label">How long?</span>${all.map((n) =>
+      `<button type="button" class="btn sm${n === S.duration ? ' on' : ''}" data-len="${n}" aria-pressed="${n === S.duration}">${esc(fmtDuration(n))}</button>`).join('')}</div>`;
   }
 
   function tzRow() {
-    return `<div class="tz"><label for="tz">Times shown in</label><select id="tz">${timeZoneOptions(S.tz)}</select></div>`;
+    return `<div class="tz"><label for="tz">Times shown in</label><select id="tz">${timeZoneOptions(S.tz, { until: S.slots[S.slots.length - 1] || Date.now() + 30 * 86_400_000 })}</select></div>`;
   }
 
   function calendar() {
@@ -142,9 +161,68 @@
 
   function times() {
     const list = S.byDay.get(S.day) || [];
-    if (!list.length) return '<h3 class="muted">Pick a green day</h3>';
-    return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>
-      <div class="slot-list">${list.map((t) => `<button type="button" class="btn" data-slot="${t}">${esc(fmtTime(t, S.tz))}</button>`).join('')}</div>`;
+    const more = S.preferred.size > 0 && S.preferred.size < S.slots.length
+      ? `<p class="more"><button type="button" class="btn sm yellow" data-more>${S.showAll ? 'Show preferred times only' : 'See more availability'}</button></p>`
+      : '';
+    if (!list.length) return `<h3 class="muted">Pick a green day</h3>${more}`;
+    return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>${dayView(list)}${more}`;
+  }
+
+  // The chosen day as a calendar: height is time. Green bands show when a meeting can happen (nothing about
+  // anyone's events). Hovering previews the meeting at the nearest allowed start; clicking picks it.
+  const PX_PER_HOUR = 72;
+  const minutesPast = (t) => Number(new Intl.DateTimeFormat('en-GB', { timeZone: S.tz, minute: '2-digit' }).format(new Date(t)));
+
+  function bandsOf(starts, dur) {
+    const bands = [];
+    for (const t of starts) {
+      const last = bands[bands.length - 1];
+      if (last && t <= last.e) last.e = Math.max(last.e, t + dur);
+      else bands.push({ s: t, e: t + dur });
+    }
+    return bands;
+  }
+
+  function dayView(list) {
+    const dur = S.duration * 60_000;
+    const top = list[0] - minutesPast(list[0]) * 60_000;
+    const lastEnd = list[list.length - 1] + dur;
+    const bottom = lastEnd + ((60 - minutesPast(lastEnd)) % 60) * 60_000;
+    const y = (t) => ((t - top) / 3_600_000) * PX_PER_HOUR;
+    const range = (t) => `${fmtTime(t, S.tz)} – ${fmtTime(t + dur, S.tz)}`;
+    const parts = [];
+    for (let h = top; h <= bottom; h += 3_600_000) {
+      parts.push(`<div class="dv-hour" style="top:${y(h)}px"><span>${esc(fmtTime(h, S.tz))}</span></div>`);
+    }
+    // A band with room for several starts invites you to choose; a band with just one shows that slot.
+    const pick = list.includes(S.pick) ? S.pick : null;
+    const touch = matchMedia('(hover: none)').matches;
+    for (const b of bandsOf(list, dur)) {
+      const starts = list.filter((t) => t >= b.s && t + dur <= b.e);
+      const text = starts.length > 1 ? (touch ? 'Tap to choose a slot' : 'Hover to choose a slot') : range(starts[0]);
+      const picked = pick != null && pick >= b.s && pick < b.e;
+      parts.push(`<div class="dv-band${picked ? ' has-pick' : ''}" style="top:${y(b.s)}px;height:${y(b.e) - y(b.s)}px"><span class="dv-band-text">${esc(text)}</span></div>`);
+    }
+    parts.push('<div class="dv-ghost" hidden></div>');
+    if (pick) parts.push(`<div class="dv-pick" style="top:${y(pick)}px;height:${y(pick + dur) - y(pick)}px">${esc(range(pick))}</div>`);
+    return `
+      <div class="dv-scroll"><div class="dayview" style="height:${y(bottom)}px" data-top="${top}" data-dur="${dur}" data-starts="${list.join(',')}">${parts.join('')}</div></div>
+      <div class="dv-actions">${pick
+        ? `<button type="button" class="btn green" data-slot="${pick}">Continue with ${esc(range(pick))}</button>`
+        : ''}</div>
+      <div class="sr-only"><p>Start times</p>${list.map((t) => `<button type="button" data-slot="${t}">${esc(range(t))}</button>`).join('')}</div>`;
+  }
+
+  // The allowed start under the pointer: the latest one at or before it, within the green band it's over.
+  function startAt(dv, e) {
+    const top = Number(dv.dataset.top);
+    const dur = Number(dv.dataset.dur);
+    const starts = dv.dataset.starts.split(',').map(Number);
+    const t = top + ((e.clientY - dv.getBoundingClientRect().top) / PX_PER_HOUR) * 3_600_000;
+    const band = bandsOf(starts, dur).find((b) => t >= b.s && t <= b.e);
+    if (!band) return null;
+    const inBand = starts.filter((s) => s >= band.s && s + dur <= band.e);
+    return inBand.filter((s) => s <= t).pop() ?? inBand[0];
   }
 
   function picker() {
@@ -156,7 +234,7 @@
       const shorter = S.duration > S.page.defaultDuration ? ` for a ${fmtDuration(S.duration)} meeting` : '';
       return `<div class="picker one"><div class="empty">No free times in the coming weeks${esc(shorter)}. Please get in touch another way.</div></div>${tzRow()}`;
     }
-    return `${notice}<div class="picker"><div>${calendar()}</div><div class="times">${times()}</div></div>${tzRow()}`;
+    return `${notice}<div class="picker"><div class="cal-col">${calendar()}</div><div class="times">${times()}</div></div>${tzRow()}`;
   }
 
   function form() {
@@ -207,16 +285,29 @@
   function render() {
     if (S.step === 'done') view.innerHTML = done();
     else view.innerHTML = header() + (S.step === 'form' ? form() : picker());
+    const scroller = view.querySelector('.dv-scroll');
+    const first = view.querySelector('.dv-pick') || view.querySelector('.dv-band');
+    if (scroller && first) scroller.scrollTop = Math.max(0, first.offsetTop - 40);
   }
 
-  function landing() {
-    document.title = 'Overlap';
+  function landing(p = {}) {
+    if (p.shared) {
+      // A team copy: everyone has their own links, so the front page just points people the right way.
+      const name = p.siteName ? `${p.siteName} booking pages` : 'Booking pages';
+      document.title = name;
+      view.innerHTML = `
+        <h1>${esc(name)}</h1>
+        <p class="lede">Everyone here has their own booking links. If you're booking a meeting, ask the person you're meeting for theirs.</p>
+        <div class="chips"><a class="btn green" href="${BASE}/admin/">Sign in to make your own</a></div>`;
+      return;
+    }
+    document.title = 'Calendfree';
     view.innerHTML = `
-      <h1>Overlap</h1>
+      <h1>Calendfree</h1>
       <p class="lede">A free, open-source scheduler that only offers times when everyone who needs to be there is free.</p>
       <div class="chips">
         <a class="btn green" href="${BASE}/demo">Try the demo</a>
-        <a class="btn blue" href="https://github.com/Aidan-Alexander/overlap">See the code</a>
+        <a class="btn blue" href="https://github.com/Aidan-Alexander/calendfree">See the code</a>
         <a class="btn" href="${BASE}/admin/">Sign in</a>
       </div>`;
   }
@@ -232,9 +323,21 @@
   // ---------- Actions ----------
 
   view.addEventListener('click', (e) => {
+    const dv = e.target.closest('.dayview');
+    if (dv && !e.target.closest('button')) {
+      const t = startAt(dv, e);
+      if (t != null) {
+        S.pick = t;
+        const scroll = view.querySelector('.dv-scroll').scrollTop;
+        render();
+        view.querySelector('.dv-scroll').scrollTop = scroll;
+      }
+      return;
+    }
     const el = e.target.closest('button');
     if (!el) return;
     if (el.dataset.day) {
+      S.pick = null;
       S.day = el.dataset.day;
       S.notice = '';
       render();
@@ -253,10 +356,39 @@
       S.notice = '';
       render();
       view.querySelector('input[name=name]')?.focus();
+    } else if (el.dataset.len) {
+      location.hash = el.dataset.len; // the hash sets the length, so the address can be shared as is
+    } else if ('more' in el.dataset) {
+      S.showAll = !S.showAll;
+      S.pick = null;
+      group();
+      render();
     } else if ('back' in el.dataset) {
       S.step = 'pick';
       render();
     }
+  });
+
+  // Preview the meeting under the pointer.
+  view.addEventListener('pointermove', (e) => {
+    const dv = e.target.closest('.dayview');
+    if (!dv) return;
+    const ghost = dv.querySelector('.dv-ghost');
+    const t = e.target.closest('.dv-pick') ? null : startAt(dv, e);
+    if (t == null) {
+      ghost.hidden = true;
+      return;
+    }
+    const top = Number(dv.dataset.top);
+    const dur = Number(dv.dataset.dur);
+    ghost.hidden = false;
+    ghost.style.top = `${((t - top) / 3_600_000) * PX_PER_HOUR}px`;
+    ghost.style.height = `${(dur / 3_600_000) * PX_PER_HOUR}px`;
+    ghost.textContent = `${fmtTime(t, S.tz)} – ${fmtTime(t + dur, S.tz)}`;
+  });
+  view.addEventListener('pointerout', (e) => {
+    const dv = e.target.closest('.dayview');
+    if (dv && !dv.contains(e.relatedTarget)) dv.querySelector('.dv-ghost').hidden = true;
   });
 
   view.addEventListener('change', (e) => {

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Share when you're busy · Overlap</title>
+<title>Share when you're busy · Calendfree</title>
 <meta name="robots" content="noindex">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🗓️</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,7 +14,7 @@
 <body>
   <main class="wrap narrow">
     <section class="card"><span class="tape" aria-hidden="true"></span><div id="view"><p class="loading">Loading</p></div></section>
-    <footer class="foot"><a href="https://github.com/Aidan-Alexander/overlap">Overlap</a> is free and open source, so you can see exactly what it does.</footer>
+    <footer class="foot"><a href="https://github.com/Aidan-Alexander/calendfree">Calendfree</a> is free and open source, so you can see exactly what it does.</footer>
   </main>
   <script src="{{BASE}}/ui.js"></script>
   <script>
@@ -27,21 +27,35 @@
     const errors = {
       expired: 'That took too long. Please try again.',
       cancelled: 'No problem, nothing was shared.',
-      scopes: 'The calendar box was unticked, so Overlap still can’t see when you’re busy. Please try again and leave it ticked.',
-      no_refresh: 'Google didn’t give lasting access. Remove Overlap at myaccount.google.com/permissions, then try again.',
+      scopes: 'The calendar box was unticked, so Calendfree still can’t see when you’re busy. Please try again and leave it ticked.',
+      no_refresh: 'Google didn’t give lasting access. Remove Calendfree at myaccount.google.com/permissions, then try again.',
       setup: 'This scheduler isn’t fully set up yet. Let the person who sent you the link know.',
     };
     if (q.get('done')) {
+      const me = await api('/api/host/me');
       view.innerHTML = `
         <div class="done-mark" aria-hidden="true">✓</div>
         <h1>Thanks${q.get('name') ? `, ${esc(q.get('name'))}` : ''}</h1>
         <p class="lede">You're all set. ${who}'s booking pages will now only offer times when you're free.</p>
-        <p class="muted">To stop sharing, remove Overlap at <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a>.</p>`;
+        ${me._status === 200 ? `
+          <h3>Your working hours <span class="hint">(optional)</span></h3>
+          <p class="muted">Set these and you'll only be booked inside them, in your own time zone.</p>
+          <div id="hours" class="form wide">${hoursForm(me.hours, me.timezone, me.travel)}
+            <div class="actions"><button class="btn green" type="button" id="save-hours">Save my hours</button></div>
+            <p id="hours-msg" class="hint" aria-live="polite"></p>
+          </div>` : ''}
+        <p class="muted">To stop sharing, remove Calendfree at <a href="https://myaccount.google.com/connections">myaccount.google.com/connections</a>.</p>`;
+      document.getElementById('save-hours')?.addEventListener('click', async () => {
+        const r = await api('/api/host/hours', { method: 'PUT', body: readHoursForm(document.getElementById('hours')) });
+        document.getElementById('hours-msg').textContent = r._status === 200
+          ? `Saved: ${describeHours(r.hours, r.timezone)}.`
+          : (r.errors || ['That didn\'t save. Please try again.'])[0];
+      });
       return;
     }
     view.innerHTML = `
       <h1>Share when you're busy</h1>
-      <p class="lede">${who} books meetings with Overlap${info.title ? `, including “${esc(info.title)}”` : ''}. It only offers times when everyone who needs to be there is free, so it needs to see when you're busy.</p>
+      <p class="lede">${who} books meetings with Calendfree${info.title ? `, including “${esc(info.title)}”` : ''}. It only offers times when everyone who needs to be there is free, so it needs to see when you're busy.</p>
       ${q.get('error') ? `<p class="error">${esc(errors[q.get('error')] || 'Something went wrong. Please try again.')}</p>` : ''}
       <dl class="details">
         <dt>It sees</dt><dd>Which times are busy on your main Google calendar.</dd>

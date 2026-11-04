@@ -10,6 +10,9 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const base = normaliseBase(process.env.BASE_PATH);
 if (base && !/^(\/[a-z0-9-]+)+$/i.test(base)) throw new Error(`BASE_PATH "${base}" should look like /meet`);
 
+// Where every copy's "Send feedback" link goes: the project's own board, unless a fork sets its own.
+const feedbackUrl = process.env.FEEDBACK_URL || 'https://aidan-alexander.com/meet/feedback/';
+
 const dist = join(root, 'dist');
 rmSync(dist, { recursive: true, force: true });
 const out = join(dist, base);
@@ -20,7 +23,7 @@ cpSync(join(root, 'public'), out, { recursive: true });
 const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 for (const file of walk(out)) {
   if (!['.html', '.js', '.css'].includes(extname(file))) continue;
-  writeFileSync(file, readFileSync(file, 'utf8').replaceAll('{{BASE}}', base));
+  writeFileSync(file, readFileSync(file, 'utf8').replaceAll('{{BASE}}', base).replaceAll('{{FEEDBACK_URL}}', feedbackUrl));
 }
 
 // Any path that isn't a file, /api/* or /auth/* is a booking page: <base>/<page-name>#<minutes>
