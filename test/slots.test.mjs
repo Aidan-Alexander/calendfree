@@ -100,6 +100,17 @@ test('preferred times: only starts whose whole meeting fits the window', async (
   assert.ok(normalisePage({ ...p, slug: 'x', preferred: ['15:00', '12:00'] }, 'me@example.org').errors.length);
 });
 
+test('preferred times can differ by day', async () => {
+  const { preferredSlots } = await import('../lib/slots.mjs');
+  const now = at('2026-11-09T00:00'); // a Monday
+  const p = page({ daysAhead: 1, preferred: { mon: ['13:00', '15:00'], tue: null } });
+  const all = computeSlots({ page: p, duration: 30, busy: [], now });
+  const pref = show(preferredSlots(p, all, 30));
+  assert.equal(pref[0], 'Mon 13:00');
+  assert.equal(pref.at(-1), 'Mon 14:30');
+  assert.ok(!pref.some((t) => t.startsWith('Tue')), 'no preferred times on Tuesday');
+});
+
 test("someone's own working hours block the rest of the day, in their time zone", async () => {
   const { outsideHours } = await import('../lib/slots.mjs');
   const now = at('2026-11-09T00:00'); // Monday, London
@@ -210,4 +221,53 @@ test('start times: every 30 minutes for whole half-hours, every 15 otherwise', a
   assert.equal((await effectivePage(demo, 60)).stepMinutes, 30);
   assert.equal((await effectivePage(demo, 45)).stepMinutes, 15);
   assert.equal((await effectivePage(demo, 25)).stepMinutes, 15);
+});
+
+test('working hours can have several windows a day (a lunch break)', async () => {
+  const { outsideHours } = await import('../lib/slots.mjs');
+  const { normaliseHours } = await import('../lib/pages.mjs');
+  const { hours, error } = normaliseHours({ mon: [['13:00', '17:30'], ['09:00', '12:00'], ['11:30', '12:15']], sun: [['22:00', '24:00']] });
+  assert.equal(error, undefined);
+  assert.deepEqual(hours.mon, [['09:00', '12:15'], ['13:00', '17:30']]); // sorted and merged
+  const now = at('2026-11-09T00:00'); // Monday
+  const blocked = outsideHours(hours, 'Europe/London', now, now + 86_400_000);
+  const p = page({ hours: null, daysAhead: 0 });
+  const slots = show(computeSlots({ page: { ...p, hours: null }, duration: 30, busy: [], blocked, now }));
+  assert.ok(slots.includes('Mon 09:00') && slots.includes('Mon 11:30') && slots.includes('Mon 13:00'));
+  assert.ok(!slots.includes('Mon 12:30'), 'nothing in the lunch break');
+  assert.ok(normaliseHours({ mon: [['10:00', '09:00']] }).error);
+});
+
+test('finished trips stay listed for a week, then drop off', async () => {
+  const { normaliseTravel, currentTrips } = await import('../lib/pages.mjs');
+  const day = (n) => DateTime.now().plus({ days: n }).toISODate();
+  const trips = [
+    { from: day(-20), to: day(-10), timezone: 'America/New_York' }, // ended 10 days ago: gone
+    { from: day(-6), to: day(-3), timezone: 'America/New_York' }, // ended 3 days ago: still listed
+    { from: day(5), to: day(9), timezone: 'Asia/Tokyo' }, // coming up
+  ];
+  const { travel, error } = normaliseTravel(trips);
+  assert.equal(error, undefined);
+  assert.deepEqual(travel.map((t) => t.to), [day(-3), day(9)]);
+  assert.deepEqual(currentTrips(trips).map((t) => t.to), [day(-3), day(9)]);
+});
+
+test('preference levels: most preferred when everyone prefers a time, preferred when anyone does', async () => {
+  const { preferenceLevels } = await import('../lib/calendar.mjs');
+  const mon = (hm) => at(`2026-11-09T${hm}`);
+  const slots = [mon('10:00'), mon('13:00'), mon('15:00')];
+  const people = [
+    { email: 'a@x.org', pref: ['12:00', '17:30'], timezone: 'Europe/London', travel: [] },
+    { email: 'b@x.org', pref: { mon: [['14:00', '16:00']] }, timezone: 'Europe/London', travel: [] },
+  ];
+  const all = preferenceLevels({ mode: 'all', showFirst: true }, people, slots, 30, new Map());
+  assert.deepEqual(show(all.preferred), ['Mon 13:00', 'Mon 15:00']);
+  assert.deepEqual(show(all.most), ['Mon 15:00']);
+  // Round robin: anyone free who prefers it makes it preferred; no "most" level.
+  const free = new Map(slots.map((t) => [t, ['a@x.org', 'b@x.org']]));
+  const rr = preferenceLevels({ mode: 'any', showFirst: true }, people, slots, 30, free);
+  assert.deepEqual(show(rr.preferred), ['Mon 13:00', 'Mon 15:00']);
+  assert.deepEqual(rr.most, []);
+  // Switched off for the page: nothing preferred.
+  assert.deepEqual(preferenceLevels({ mode: 'all', showFirst: false }, people, slots, 30, new Map()).preferred, []);
 });

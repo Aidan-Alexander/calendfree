@@ -18,7 +18,8 @@
     formError: '',
     values: {},
     result: null,
-    preferred: new Set(), // start times inside the page's preferred hours
+    preferred: new Set(), // start times someone on the page prefers
+    most: new Set(), // start times everyone on the page prefers
     showAll: false,
     pick: null, // the start chosen in the day view
   };
@@ -94,6 +95,7 @@
     S.slots = r.slots || [];
     S.pick = null;
     S.preferred = new Set(r.preferred || []);
+    S.most = new Set(r.most || []);
     if (r.duration) S.duration = r.duration;
     group();
     render();
@@ -169,9 +171,13 @@
     const more = S.preferred.size > 0 && S.preferred.size < S.slots.length
       ? `<p class="more"><button type="button" class="btn sm yellow" data-more>${S.showAll ? 'Show preferred times only' : 'See more availability'}</button></p>`
       : '';
-    const key = extraShown()
-      ? '<p class="dv-key"><span class="swatch green" aria-hidden="true"></span>Preferred times <span class="swatch yellow" aria-hidden="true"></span>Extra availability</p>'
-      : '';
+    // The key: most preferred (everyone prefers it), preferred (someone does), and extra availability once shown.
+    const items = [
+      S.most.size ? '<span class="swatch dark" aria-hidden="true"></span>Most preferred' : '',
+      S.most.size || extraShown() ? '<span class="swatch green" aria-hidden="true"></span>Preferred' : '',
+      extraShown() ? '<span class="swatch yellow" aria-hidden="true"></span>Extra availability' : '',
+    ].filter(Boolean);
+    const key = items.length ? `<p class="dv-key">${items.join(' ')}</p>` : '';
     if (!list.length) return `<h3 class="muted">${extraShown() ? 'Pick a day' : 'Pick a green day'}</h3>${key}${more}`;
     return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>${dayView(list)}${key}${more}`;
   }
@@ -213,18 +219,22 @@
       const starts = list.filter((t) => t >= b.s && t + dur <= b.e);
       const text = starts.length > 1 ? (touch ? 'Tap to choose a slot' : 'Hover to choose a slot') : range(starts[0]);
       const picked = pick != null && pick >= b.s && pick < b.e;
-      // Each stretch of a band takes the colour of the start time you'd get there: green if preferred, yellow if extra.
-      const extra = [];
-      if (extraShown()) {
+      // Each stretch of a band takes the colour of the start time you'd get there: dark green if everyone prefers it,
+      // green if someone does, yellow if it's extra availability.
+      const runs = (keep) => {
+        const out = [];
         starts.forEach((s, i) => {
-          if (S.preferred.has(s)) return;
+          if (!keep(s)) return;
           const e = starts[i + 1] ?? b.e;
-          const last = extra[extra.length - 1];
+          const last = out[out.length - 1];
           if (last && last.e === s) last.e = e;
-          else extra.push({ s, e });
+          else out.push({ s, e });
         });
-      }
-      const shading = extra.map((r) => `<span class="dv-extra" style="top:${y(r.s) - y(b.s)}px;height:${y(r.e) - y(r.s)}px"></span>`).join('');
+        return out;
+      };
+      const shade = (cls, list) => list.map((r) => `<span class="${cls}" style="top:${y(r.s) - y(b.s)}px;height:${y(r.e) - y(r.s)}px"></span>`).join('');
+      const shading = (extraShown() ? shade('dv-extra', runs((s) => !S.preferred.has(s))) : '')
+        + (S.most.size ? shade('dv-extra dv-most', runs((s) => S.most.has(s))) : '');
       parts.push(`<div class="dv-band${picked ? ' has-pick' : ''}" style="top:${y(b.s)}px;height:${y(b.e) - y(b.s)}px">${shading}<span class="dv-band-text">${esc(text)}</span></div>`);
     }
     parts.push('<div class="dv-ghost" hidden></div>');

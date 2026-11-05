@@ -257,7 +257,7 @@ details summary { cursor: pointer; }
 .trips { display: grid; gap: 8px; justify-items: start; }
 .trip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .trip-row input[type=date] { width: auto; padding: 6px 10px; font-size: 15px; }
-.trip-row select { width: auto; max-width: 280px; padding: 6px 10px; font-size: 15px; }
+.trip-row select { width: auto; max-width: 400px; padding: 6px 10px; font-size: 15px; }
 .lengths-pick .btn.on { background: var(--ink); color: var(--bg); }
 
 /* Just me / Others switch (it's a control, so it looks like a button) */
@@ -348,7 +348,7 @@ dialog.confirm h3 { margin-bottom: 10px; }
 .dv-band-text { padding: 0 10px; font-size: 14px; font-weight: 600; color: var(--muted); text-align: center; pointer-events: none; }
 .dv-band:hover .dv-band-text, .dv-band.has-pick .dv-band-text { visibility: hidden; }
 
-.colleagues-label { margin-top: 22px; }
+.colleagues-label { display: block; margin-top: 22px; padding-top: 18px; border-top: 1px dashed var(--line); }
 
 /* Feedback board */
 .ideas-title { margin-top: 30px; }
@@ -379,3 +379,122 @@ dialog.confirm h3.dialog-sub { margin-top: 22px; }
 .dv-key .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line); }
 .dv-key .swatch.green { background: var(--green); }
 .dv-key .swatch.yellow { background: var(--yellow); margin-left: 8px; }
+
+.pref-now { font-size: 14px; color: #2f7a3b; font-weight: 600; }
+.pref-own { display: grid; gap: 10px; justify-items: start; }
+
+/* Working hours as a week you colour in (ui.js hoursForm) */
+.weekgrid { display: grid; gap: 10px; }
+.wg-modes { margin-bottom: 2px; }
+.wg-help { margin: 0; max-width: 640px; }
+.wg-step { display: inline-block; color: var(--faint); }
+.wg-step.fine { color: var(--ink); font-weight: 700; background: var(--yellow); padding: 0 6px; border-radius: 6px; }
+.wg-frame { border: 2px solid var(--ink); border-radius: 14px; background: var(--field); overflow: hidden; max-width: 760px; }
+.wg-heads, .wg-grid { display: grid; grid-template-columns: 46px repeat(7, minmax(0, 1fr)); }
+.wg-heads { border-bottom: 1px solid var(--line); background: var(--paper); }
+.wg-head { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; font-weight: 700; font-size: 14px; }
+.wg-copy { border: 1px solid var(--line); background: var(--paper); border-radius: 999px; padding: 1px 8px; font-size: 11px; font-weight: 700; color: var(--muted); cursor: pointer; }
+.wg-copy:hover { border-color: var(--ink); color: var(--ink); }
+.wg-scroll { max-height: 440px; overflow-y: auto; }
+.wg-axis { position: relative; touch-action: pan-y; }
+.wg-axis span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 11px; font-weight: 600; color: var(--faint); }
+.wg-axis span:first-child { transform: none; }
+.wg-body { position: relative; border-left: 1px solid var(--line); cursor: crosshair; touch-action: none; user-select: none;
+  background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--px, 36px)); }
+.wg-grid.zoom .wg-body { background-image: repeating-linear-gradient(to bottom, var(--line) 0 1px, transparent 1px var(--px)),
+  repeating-linear-gradient(to bottom, rgba(34, 25, 15, 0.07) 0 1px, transparent 1px calc(var(--px) / 4)); }
+.wg-axis span.q { font-size: 10px; font-weight: 500; opacity: 0.75; }
+.wg-work, .wg-pref, .wg-ghost { position: absolute; left: 3px; right: 3px; border-radius: 6px; overflow: hidden; pointer-events: none; }
+.wg-work { background: var(--green); }
+.wg-work.extra { background: var(--yellow); }
+.wg-pref { background: var(--green); box-shadow: inset 0 0 0 2px rgba(47, 122, 59, 0.35); }
+.wg-work span, .wg-pref span { display: block; padding: 3px 5px; font-size: 11px; font-weight: 700; line-height: 1.2; color: var(--ink); }
+.wg-ghost { border: 2px dashed var(--ink); background: rgba(211, 240, 214, 0.55); z-index: 2; }
+.wg-ghost.pref { background: rgba(211, 240, 214, 0.85); }
+.wg-ghost.erase { background: rgba(255, 214, 222, 0.6); }
+.wg-ghost span { position: absolute; top: -26px; left: 0; white-space: nowrap; padding: 2px 8px; border-radius: 6px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 700; }
+.wg-copybar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 12px; background: var(--yellow); font-weight: 600; max-width: 760px; }
+.chipbtn { border: 2px solid var(--ink); background: var(--paper); border-radius: 999px; padding: 3px 10px; font-weight: 700; font-size: 13px; cursor: pointer; }
+.chipbtn.on { background: var(--ink); color: var(--bg); }
+.wg-under { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px 16px; max-width: 760px; }
+.wg-summary { margin: 0; font-size: 14px; }
+.wg-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.wg-key .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+.wg-key .swatch.green { background: var(--green); }
+.wg-key .swatch.yellow { background: var(--yellow); margin-left: 8px; }
+.wg-type summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+.wg-type-row { display: grid; grid-template-columns: 110px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 6px; max-width: 640px; }
+.wg-type-row input { padding: 6px 10px; font-size: 15px; }
+.wg-type-row input.bad { border-color: #c0392b; }
+@media (max-width: 760px) {
+  .wg-heads, .wg-grid { grid-template-columns: 38px repeat(7, minmax(0, 1fr)); }
+  .wg-head { font-size: 12px; }
+  .wg-copy { padding: 1px 4px; font-size: 10px; }
+  .wg-work span, .wg-pref span { font-size: 10px; padding: 2px 3px; }
+  .wg-type-row { grid-template-columns: 1fr; }
+}
+
+/* The weekday Copy buttons swell in turn every few seconds, until one has been used */
+@keyframes wgPulse { 0%, 4.5%, 100% { transform: scale(1); } 2% { transform: scale(1.32); border-color: var(--ink); color: var(--ink); } }
+.wg-copy.pulse { animation: wgPulse 12s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .wg-copy.pulse { animation: none; } }
+.wg-type-head span { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.wg-type-row.one { grid-template-columns: 110px minmax(0, 1fr); }
+@media (max-width: 760px) {
+  .wg-type-row, .wg-type-head { grid-template-columns: 1fr 1fr; }
+  .wg-type-row > span:first-child { grid-column: 1 / -1; font-weight: 600; margin-top: 4px; }
+  .wg-type-head > span:first-child { display: none; }
+  .wg-type-row.one { grid-template-columns: 1fr; }
+}
+.wg-ghost { overflow: visible; }
+.wg-ghost span { z-index: 3; }
+
+/* Toolbar above the grid: what to colour in, and how finely */
+.wg-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; max-width: 760px; }
+.wg-snap { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+.wg-snap .seg span { padding: 5px 12px; font-size: 14px; }
+.wg-copybar { position: relative; padding-right: 44px; }
+.wg-x { position: absolute; top: 6px; right: 8px; width: 28px; height: 28px; border: 0; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: var(--ink); border-radius: 50%; }
+.wg-x:hover { background: rgba(34, 25, 15, 0.08); }
+
+/* Drop-downs: our own arrow, set in from the edge with room around it */
+select.input, .tz select, .trip-row select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%2322190f' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 16px center; background-size: 12px 8px;
+}
+
+/* Your settings: a small picture of your week instead of a written summary */
+.hours-now { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 22px; }
+.wk-mini-btn { display: block; padding: 10px 12px 8px; border: 2px solid var(--ink); border-radius: 12px; background: var(--field); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
+.wk-mini-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.wk-mini { display: grid; grid-template-columns: 38px 300px; gap: 6px; height: 128px; }
+.wk-axis { position: relative; height: 108px; }
+.wk-axis span { position: absolute; right: 0; transform: translateY(-50%); font-size: 10px; font-weight: 600; color: var(--faint); }
+.wk-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.wk-day { display: grid; grid-template-rows: 108px auto; gap: 4px; min-width: 0; }
+.wk-track { position: relative; border-radius: 5px; background: var(--paper); border: 1px solid var(--line); overflow: hidden; }
+.wk-work, .wk-pref { position: absolute; left: 0; right: 0; }
+.wk-work { background: var(--green); }
+.wk-work.extra { background: var(--yellow); }
+.wk-pref { background: var(--green); }
+.wk-label { font-size: 11px; font-weight: 700; text-align: center; color: var(--muted); }
+.wk-day.off .wk-label { color: var(--faint); font-weight: 600; }
+.hours-now-side { display: grid; gap: 8px; justify-items: start; }
+.hours-now-side .hint { margin: 0; }
+.wk-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0; font-size: 13px; color: var(--muted); }
+.wk-key .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--line); }
+.wk-key .swatch.green { background: var(--green); }
+.wk-key .swatch.yellow { background: var(--yellow); margin-left: 8px; }
+@media (max-width: 760px) { .wk-mini { grid-template-columns: 34px minmax(0, 1fr); } .wk-mini-btn { width: 100%; } }
+
+.hours-mini .trips { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.wg-help .wg-type-toggle { font-size: inherit; color: inherit; }
+.wg-typed { display: grid; gap: 2px; max-width: 640px; }
+
+/* Most preferred: a time everyone on the page prefers */
+.dv-extra.dv-most { background: #a7deb1; }
+.dv-key .swatch.dark { background: #a7deb1; }
+.dv-key .swatch.green { margin-left: 8px; }
+.dv-key .swatch:first-child { margin-left: 0; }

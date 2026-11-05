@@ -39,8 +39,8 @@
         <p class="lede">You're all set. ${who}'s booking pages will now only offer times when you're free.</p>
         ${me._status === 200 ? `
           <h3>Your working hours <span class="hint">(optional)</span></h3>
-          <p class="muted">Set these and you'll only be booked inside them, in your own time zone.</p>
-          <div id="hours" class="form wide">${hoursForm(me.hours, me.timezone, me.travel)}
+          <p class="muted">Set these and you'll only be booked inside them, in your own time zone. You can also mark the times you'd most like to be booked.</p>
+          <div id="hours" class="form wide">${hoursForm(me.hours, me.timezone, me.travel, { hours: me.preferredHours, firstOption: false })}
             <div class="actions"><button class="btn green" type="button" id="save-hours">Save my hours</button></div>
             <p id="hours-msg" class="hint" aria-live="polite"></p>
           </div>` : ''}

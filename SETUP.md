@@ -91,7 +91,7 @@ Ask if there's a meeting where someone else also needs to be there (an interview
 ## 8. Tour and optional extras
 
 Show them, briefly:
-- **Your settings:** working hours (including trips that move their hours to another time zone), booking rules (gap between meetings, notice, how far ahead), email notifications and other calendars.
+- **Your settings:** working hours (including trips that move their hours to another time zone), coloured in on a week grid with a Copy button per day, plus optional preferred times coloured in the same way (shown first, with the rest one click away), booking rules (gap between meetings, notice, how far ahead), email notifications and other calendars. Each page can change its hours or rules, and whether preferred times show first.
 - **Editors:** on any page, they can add people under "Who can edit". Those people can change the page after signing in with Google (only their name and email), and Calendfree gives them a message with the link to send.
 - **Email notifications:** they need the Gmail API enabled in the same Google Cloud project (search **Gmail API**, then **Enable**), then **Switch on** in Your settings.
 - **Their own domain:** in Netlify, open the site, then **Domain management**. Add the new address as a second redirect URI in Google Cloud, and set `PUBLIC_URL` (see `.env.example`).

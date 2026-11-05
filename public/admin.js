@@ -18,6 +18,10 @@
   const isMine = (p) => !p.owner || p.owner === A.me.email;
   const ownerFirst = (p) => first(p.ownerName) || 'the owner';
   const rulesOf = (p) => (isMine(p) ? A.me.rules : p.ownerRules);
+  // The page owner's preferred times and whether they're shown first by default.
+  const usualPref = (p) => (isMine(p)
+    ? { hours: A.me.preferredHours, first: A.me.preferFirst }
+    : { hours: p.ownerPreferredHours, first: p.ownerPreferFirst });
   const editorSignIn = () => `${appUrl}/admin/?editor=1`;
   const minutesList = (list) => (list.length > 1 ? `${list.slice(0, -1).join(', ')} or ${list[list.length - 1]}` : String(list[0] || ''));
 
@@ -155,21 +159,33 @@
 
   function settingsCard() {
     const m = A.me;
-    const hoursNow = m.hours
-      ? `${describeHours(m.hours, m.timezone)}${m.travel?.length ? ` · ${m.travel.length} trip${m.travel.length > 1 ? 's' : ''} coming up` : ''}`
-      : `Not set yet, so you're treated as Mon–Fri 09:00–17:30 in each page's time zone.`;
+    // Under the week picture: the time zone and trips (which the picture can't show), and what the colours mean.
+    // Finished trips stay in the list for a week, but only ones still to come count here.
+    const today = new Date().toLocaleDateString('en-CA');
+    const upcoming = (m.travel || []).filter((t) => t.to >= today).length;
+    const trips = upcoming ? ` · ${upcoming} trip${upcoming > 1 ? 's' : ''} coming up` : '';
+    const hoursNote = m.hours
+      ? `${esc(cityOf(m.timezone || browserTz))} time${trips}`
+      : "Not set yet, so you're treated as Mon–Fri 09:00–17:30 in each page's time zone.";
+    const key = m.preferredHours
+      ? `<span class="swatch green"></span>Preferred${m.preferFirst ? ', shown first' : ''} <span class="swatch yellow"></span>Other general hours`
+      : '';
     return `
       <section class="card settings">
         <div class="setting">
           <h2>Working hours</h2>
-          <p class="muted">Bookings only land inside working hours, on every page. To use other hours on one page, choose "Different hours" when editing it.</p>
+          <p class="muted">Set the default available meeting hours for all your booking pages. You can also mark preferred times for people to choose from first.</p>
           ${A.open.hours
             ? `<div data-hours-for="${esc(m.email)}" class="form wide">
-                ${hoursForm(m.hours, m.timezone || browserTz, m.travel)}
+                ${hoursForm(m.hours, m.timezone || browserTz, m.travel, { hours: m.preferredHours, first: m.preferFirst })}
                 <div class="actions"><button class="btn green" type="button" data-hours-save>Save working hours</button>
                   <button class="btn" type="button" data-open="hours">Cancel</button></div>
               </div>`
-            : `<div class="setting-row"><strong>You</strong><span>${esc(hoursNow)}</span><button class="btn sm" type="button" data-open="hours">Change</button></div>`}
+            : `<div class="hours-now">
+                <button type="button" class="wk-mini-btn" data-open="hours" aria-label="Change your working hours">${weekMini(m.hours, m.preferredHours)}</button>
+                <div class="hours-now-side"><button class="btn sm" type="button" data-open="hours">Change</button>
+                  <p class="hint">${hoursNote}</p>${key ? `<p class="wk-key">${key}</p>` : ''}</div>
+              </div>`}
           ${colleagues().length ? `<span class="label colleagues-label">Other people on your pages</span>
             <p class="hint">They're here because they're in People on one of your pages. They can set their own hours when they share their calendar, or you can set them here.</p>
             ${colleagues().map(personHours).join('')}` : ''}
@@ -224,11 +240,11 @@
 
   function personHours(h) {
     const editing = A.open.person === h.email;
-    const now = h.hours ? describeHours(h.hours, h.timezone) : 'Not set: Mon–Fri 09:00–17:30';
+    const now = `${h.hours ? describeHours(h.hours, h.timezone) : 'Not set: Mon–Fri 09:00–17:30'}${h.preferredHours ? ` · prefers ${describeHours(h.preferredHours, '')}` : ''}`;
     return `<div class="person" data-hours-for="${esc(h.email)}">
         <div class="setting-row"><strong>${esc(h.name || h.email)}</strong><span class="muted">${esc(now)}</span>
           ${editing ? '' : `<button class="btn sm" type="button" data-person="${esc(h.email)}">Change</button>`}</div>
-        ${editing ? `${hoursForm(h.hours, h.timezone || A.me.timezone || browserTz, h.travel)}
+        ${editing ? `${hoursForm(h.hours, h.timezone || A.me.timezone || browserTz, h.travel, { hours: h.preferredHours, firstOption: false })}
           <div class="actions"><button class="btn sm green" type="button" data-hours-save>Save</button>
             ${h.hours ? '<button class="btn sm" type="button" data-hours-clear>Use the default</button>' : ''}
             <button class="btn sm" type="button" data-person="">Cancel</button></div>` : ''}
@@ -371,7 +387,7 @@
       p.mode === 'any' ? 'Round robin: one of them per booking' : '',
       p.hours ? 'Different hours' : '',
       p.rules ? 'Own booking rules' : '',
-      p.preferred ? `Preferred ${p.preferred[0]}–${p.preferred[1]}` : '',
+      Array.isArray(p.preferred) ? `Preferred ${p.preferred[0]}–${p.preferred[1]}` : p.preferred === true ? 'Preferred times first' : p.preferred === false ? 'All times shown equally' : '',
       p.dailyCap ? `Up to ${p.dailyCap} a day` : '',
     ].filter(Boolean);
     return `
@@ -503,12 +519,11 @@
             </div>
             <input type="hidden" name="rulesOwn">
 
+            <span class="label">Preferred times</span>
+            ${prefBlock(p, mine, ow)}
+            <input type="hidden" name="prefOwn">
+
             <span class="label">Extras</span>
-            <label class="check"><input type="checkbox" name="prefOn"> <span>Show preferred times first <span class="hint">People see these first, with a button to see the rest. Great if you'd rather have afternoon meetings but don't want to make it a hard rule.</span></span></label>
-            <div class="pref-times hm-times">
-              <input type="time" name="prefFrom" aria-label="Preferred from"> <span class="muted">to</span>
-              <input type="time" name="prefTo" aria-label="Preferred to">
-            </div>
             <label class="field narrow-field">Most bookings a day from this page <span class="hint">Leave empty for no limit.</span><input type="number" name="dailyCap" min="1" max="50" placeholder="No limit"></label>
           </fieldset>
 
@@ -568,9 +583,14 @@
     f.elements.rulesOwn.value = own ? '1' : '';
     if (own) for (const k of RULE_KEYS) set(k, own[k]);
     set('dailyCap', p.dailyCap || '');
-    f.elements.prefOn.checked = Boolean(p.preferred);
-    set('prefFrom', p.preferred?.[0] || '12:00');
-    set('prefTo', p.preferred?.[1] || '17:30');
+    // Preferred times: null follows the owner's usual setting; true/false are this page's own; an older page may
+    // still have its own range ('legacy').
+    f.elements.prefOwn.value = Array.isArray(p.preferred) ? 'legacy' : typeof p.preferred === 'boolean' ? '1' : '';
+    // Changing it for one page usually means the opposite of the usual, so start there.
+    const usual = usualPref(p);
+    const usualFirst = usual.hours ? usual.first : true; // nobody's own choice yet: preferred times show first
+    const prefMode = typeof p.preferred === 'boolean' ? (p.preferred ? 'on' : 'off') : usualFirst ? 'off' : 'on';
+    for (const r of f.querySelectorAll('input[name=prefMode]')) r.checked = r.value === prefMode;
     const mode = p.hours ? 'replace' : 'working';
     for (const r of f.querySelectorAll('input[name=hoursMode]')) r.checked = r.value === mode;
     const hours = p.hours || DEFAULT_WEEK;
@@ -611,13 +631,40 @@
         hoursMode, hours, timezone: A.me.timezone || browserTz,
         rules: f.elements.rulesOwn.value ? Object.fromEntries(RULE_KEYS.map((k) => [k, Number(v(k))])) : null,
         dailyCap: Number(v('dailyCap')) || 0,
-        preferred: f.elements.prefOn.checked ? [v('prefFrom'), v('prefTo')] : null,
+        preferred: f.elements.prefOwn.value === 'legacy' ? A.editing.page.preferred
+          : f.elements.prefOwn.value ? f.querySelector('input[name=prefMode]:checked')?.value === 'on' : null,
         location: f.querySelector('input[name=location]:checked')?.value || 'meet', locationText: v('locationText'),
         eventTitle: v('eventTitle'), allowGuests: f.elements.allowGuests.checked,
         editors: f.elements.editors ? v('editors') : '',
       },
       home: f.elements.home.checked,
     };
+  }
+
+  // The page's preferred-times line: the owner's usual setting, with "Change for this page" to switch it on or off here.
+  function prefBlock(p, mine, ow) {
+    const usual = usualPref(p);
+    const whose = mine ? 'Your' : `${ow}'s`;
+    const legacy = Array.isArray(p.preferred)
+      ? `<div class="setting-row pref-legacy"><span>This page has its own preferred times: ${esc(p.preferred[0])}–${esc(p.preferred[1])}, shown first.</span>
+          <button type="button" class="btn sm" data-pref-usual>${mine ? 'Use my usual setting' : `Use ${ow}'s usual setting`}</button></div>`
+      : '';
+    // Preferred times count from everyone on the page; whether they show first is the owner's usual setting.
+    const text = !usual.hours
+      ? `Times anyone on this page prefers show first. ${mine ? "You haven't marked any yourself (you can, with your working hours under Your settings)." : `${ow} hasn't marked any.`}`
+      : usual.first
+        ? `Preferred times show first: ${mine ? 'yours' : `${ow}'s`} (${esc(describeHours(usual.hours, ''))}) and anyone else's on this page.`
+        : `Preferred times aren't shown first on ${mine ? 'your' : `${ow}'s`} pages.`;
+    const usualRow = `<div class="setting-row pref-usual"><span>${text}</span>
+        <button type="button" class="btn sm" data-pref-own>Change for this page</button></div>`;
+    return `${legacy}${usualRow}
+      <div class="pref-own">
+        <div class="seg" role="radiogroup" aria-label="Preferred times on this page">
+          <label><input type="radio" name="prefMode" value="on"><span>Show preferred times first</span></label>
+          <label><input type="radio" name="prefMode" value="off"><span>Show all times equally</span></label>
+        </div>
+        <button type="button" class="linkish" data-pref-usual>${mine ? 'Use my usual setting instead' : `Use ${ow}'s usual setting instead`}</button>
+      </div>`;
   }
 
   const RULE_KEYS = ['bufferMinutes', 'minNoticeHours', 'daysAhead'];
@@ -639,7 +686,11 @@
 
   // Preferred times only when ticked; the "somewhere else" box only when that's picked.
   function showExtras(f) {
-    f.querySelector('.pref-times').hidden = !f.elements.prefOn.checked;
+    const own = f.elements.prefOwn.value;
+    for (const [sel, show] of [['.pref-legacy', own === 'legacy'], ['.pref-own', own === '1'], ['.pref-usual', !own]]) {
+      const el = f.querySelector(sel);
+      if (el) el.hidden = !show;
+    }
     f.querySelector('.location-text').hidden = f.querySelector('input[name=location]:checked')?.value !== 'custom';
   }
 
@@ -739,7 +790,7 @@
       ? await api('/api/settings', { method: 'PUT', body })
       : await api('/api/hours', { method: 'PUT', body: { email: target, ...body } });
     if (r._status !== 200) return alert((r.errors || ['Could not save those hours.']).join('\n'));
-    if (target === A.me.email) Object.assign(A.me, { hours: r.hours, timezone: r.timezone, travel: r.travel });
+    if (target === A.me.email) Object.assign(A.me, { hours: r.hours, timezone: r.timezone, travel: r.travel, preferredHours: r.preferredHours, preferFirst: r.preferFirst });
     A.flash = r.hours ? `Saved working hours: ${describeHours(r.hours, r.timezone)}.` : 'Back to the default working hours.';
     A.open.hours = false;
     A.open.person = null;
@@ -762,6 +813,11 @@
     if ('person' in d) {
       A.open.person = d.person || null;
       render();
+      return;
+    }
+    if ('prefOwn' in d || 'prefUsual' in d) {
+      el.form.elements.prefOwn.value = 'prefOwn' in d ? '1' : '';
+      showExtras(el.form);
       return;
     }
     if ('rulesOwn' in d || 'rulesUsual' in d) {
@@ -865,7 +921,7 @@
       showWhen(e.target.form);
       return;
     }
-    if (e.target.name === 'prefOn' || e.target.name === 'location') {
+    if (e.target.name === 'location' && e.target.form?.id === 'editor') {
       showExtras(e.target.form);
       return;
     }
