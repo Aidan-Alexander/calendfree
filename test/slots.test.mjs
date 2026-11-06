@@ -271,3 +271,22 @@ test('preference levels: most preferred when everyone prefers a time, preferred 
   // Switched off for the page: nothing preferred.
   assert.deepEqual(preferenceLevels({ mode: 'all', showFirst: false }, people, slots, 30, new Map()).preferred, []);
 });
+
+test('booking records are deleted 30 days after the meeting', async () => {
+  const { deleteOldBookings } = await import('../lib/cleanup.mjs');
+  const now = Date.parse('2026-12-31T12:00:00Z');
+  const day = 86_400_000;
+  const data = new Map([
+    ['bookings/old', { end: now - 31 * day }], // meeting ended 31 days ago: deleted
+    ['bookings/recent', { end: now - 29 * day }], // 29 days ago: kept
+    ['bookings/future', { end: now + 5 * day }], // still to come: kept
+    ['bookings/legacy', { createdAt: new Date(now - 60 * day).toISOString() }], // no end, made long ago: deleted
+  ]);
+  const db = {
+    listKeys: async (prefix) => [...data.keys()].filter((k) => k.startsWith(prefix)),
+    getJSON: async (k) => data.get(k),
+    remove: async (k) => data.delete(k),
+  };
+  assert.equal(await deleteOldBookings({ now, db }), 2);
+  assert.deepEqual([...data.keys()].sort(), ['bookings/future', 'bookings/recent']);
+});

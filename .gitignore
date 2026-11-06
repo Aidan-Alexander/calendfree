@@ -5,3 +5,7 @@ dist/
 netlify/functions/api.mjs
 .DS_Store
 deno.lock
+
+# Organisation themes stay private: only the folder README is public
+themes/*
+!themes/README.md

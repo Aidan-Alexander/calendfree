@@ -110,6 +110,8 @@ With `OVERLAP_FAKE_GOOGLE=1` (the default in `.env.example`), calendars are made
 - **Working hours are per person**, in their own time zone. A page can swap in different hours for you; the other people on it keep theirs.
 - **Google only, for now.** Outlook and iCloud calendars aren't supported. Pull requests are welcome.
 - **Who sees what:** anyone with a page's link sees its free times and the first names of the people on it. Never email addresses, never event details.
+- **What's kept about bookings:** the person's name, email, what the meeting's for, any guests and the time, so the "cancel or move" link works. A daily clean-up (`netlify/functions/cleanup.mjs`) deletes each record 30 days after the meeting. The meeting itself stays in the host's Google Calendar.
+- **Your organisation's look:** a copy can have its own logo, colours and fonts. See `themes/README.md`.
 
 ## How it's built
 

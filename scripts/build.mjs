@@ -1,7 +1,7 @@
 // Builds the site into dist/, under BASE_PATH if it's set (e.g. BASE_PATH=/meet serves everything at /meet/...).
 // Also writes the function's route list, which Netlify needs as a fixed value.
 // Netlify runs this on every deploy; run it yourself with `node scripts/build.mjs`.
-import { cpSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normaliseBase } from '../lib/config.mjs';
@@ -19,11 +19,35 @@ const out = join(dist, base);
 mkdirSync(out, { recursive: true });
 cpSync(join(root, 'public'), out, { recursive: true });
 
-// Put the base path into every link and fetch.
+// Optional branding for an organisation's copy: THEME=aim uses themes/aim/ — theme.css (loaded after style.css),
+// and if present logo.png (shown above each page), icon.png (the browser tab icon) and theme.json ({ name, url }).
+const theme = String(process.env.THEME || '').trim();
+let themeTags = '';
+let logoTag = '';
+let iconTag = '';
+if (theme) {
+  const dir = join(root, 'themes', theme);
+  if (!existsSync(join(dir, 'theme.css'))) throw new Error(`THEME "${theme}" needs themes/${theme}/theme.css`);
+  cpSync(dir, join(out, 'theme'), { recursive: true });
+  const info = existsSync(join(dir, 'theme.json')) ? JSON.parse(readFileSync(join(dir, 'theme.json'), 'utf8')) : {};
+  const attr = (v) => String(v).replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c]);
+  themeTags = `<link rel="stylesheet" href="${base}/theme/theme.css">`;
+  if (existsSync(join(dir, 'logo.png'))) {
+    logoTag = `<header class="brandbar"><a class="brand-logo" href="${attr(info.url || `${base}/`)}"><img src="${base}/theme/logo.png" alt="${attr(info.name || '')}"></a></header>`;
+  }
+  if (existsSync(join(dir, 'icon.png'))) iconTag = `<link rel="icon" href="${base}/theme/icon.png">`;
+}
+
+// Put the base path into every link and fetch, and the theme (if any) into every page.
 const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 for (const file of walk(out)) {
   if (!['.html', '.js', '.css'].includes(extname(file))) continue;
-  writeFileSync(file, readFileSync(file, 'utf8').replaceAll('{{BASE}}', base).replaceAll('{{FEEDBACK_URL}}', feedbackUrl));
+  let text = readFileSync(file, 'utf8').replaceAll('{{BASE}}', base).replaceAll('{{FEEDBACK_URL}}', feedbackUrl);
+  if (extname(file) === '.html') {
+    text = text.replaceAll('{{THEME}}', themeTags).replaceAll('{{LOGO}}', logoTag);
+    if (iconTag) text = text.replace(/<link rel="icon"[^\n]*/, iconTag); // the whole line: the emoji icon contains '>'
+  }
+  writeFileSync(file, text);
 }
 
 // Any path that isn't a file, /api/* or /auth/* is a booking page: <base>/<page-name>#<minutes>
@@ -45,4 +69,4 @@ export const config = { path: ['${base}/api/*', '${base}/auth/*'] };
 `,
 );
 
-console.log(`Built dist/ with base path "${base || '/'}"`);
+console.log(`Built dist/ with base path "${base || '/'}"${theme ? ` and theme "${theme}"` : ''}`);

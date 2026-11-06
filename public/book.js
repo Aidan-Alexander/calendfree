@@ -178,7 +178,7 @@
       extraShown() ? '<span class="swatch yellow" aria-hidden="true"></span>Extra availability' : '',
     ].filter(Boolean);
     const key = items.length ? `<p class="dv-key">${items.join(' ')}</p>` : '';
-    if (!list.length) return `<h3 class="muted">${extraShown() ? 'Pick a day' : 'Pick a green day'}</h3>${key}${more}`;
+    if (!list.length) return `<h3 class="muted">Pick a day</h3>${key}${more}`;
     return `<h3>${esc(fmtDay(list[0], S.tz))}</h3>${dayView(list)}${key}${more}`;
   }
 
