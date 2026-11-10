@@ -34,7 +34,7 @@ People outside your organisation can opt in with one click only if your Google a
 **The easy way: let Claude do it.** Paste this into [Claude Code](https://claude.com/claude-code) (the Code tab of the Claude desktop app works) and it will set everything up with you, talking you through the parts only you can click:
 
 ```
-Set up Calendfree for me. Fetch https://raw.githubusercontent.com/Aidan-Alexander/calendfree/main/SETUP.md exactly as written (e.g. with curl) and follow it.
+Set up Calendfree for me: clone https://github.com/Aidan-Alexander/calendfree to ~/calendfree, then follow SETUP.md in that folder. It installs the Netlify command-line tool (netlify-cli) from npm if I don't have it.
 ```
 
 **Doing it yourself** takes the same steps:

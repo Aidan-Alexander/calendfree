@@ -21,8 +21,15 @@ Check for `git`, `node` (version 18 or later) and `npm`. If Node is missing, ask
 
 ## 2. Get the code
 
+The setup line usually asks you to clone the code into `~/calendfree` before you read this file. If that folder isn't there yet, clone it first:
+
 ```
 git clone https://github.com/Aidan-Alexander/calendfree.git ~/calendfree
+```
+
+If it was already there before this session, with a `.env` file or a linked Netlify site (`netlify status`), they've set it up before: follow "Updating later" at the end of this file instead, and stop there. Otherwise:
+
+```
 cd ~/calendfree
 npm install
 npm test
