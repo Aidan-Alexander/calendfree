@@ -60,6 +60,7 @@
     const r = await api(`/api/pages?tz=${encodeURIComponent(browserTz)}`);
     A.pages = r.pages || [];
     A.editable = r.editable || [];
+    A.requests = r.requests || [];
     A.home = r.homeSlug || '';
     render();
     await Promise.all([...[...A.pages, ...A.editable].map((p) => loadStatus(p.slug)), loadFeedback()]);
@@ -138,6 +139,7 @@
         ${settingsCard()}
         <div class="dash-head"><h1>Your booking pages</h1><button class="btn green" data-new>New page</button></div>
         ${A.pages.map(card).join('') || '<section class="card"><p>No booking pages yet.</p></section>'}
+        ${requestsSection()}
         ${peopleTip()}` : ''}
       ${A.editable.length || !m.canCreate ? `
         <div class="dash-head"><h1>Pages you can edit</h1></div>
@@ -204,7 +206,7 @@
 
         <div class="setting">
           <h2>Email notifications</h2>
-          <p class="muted">An email from your own Gmail whenever someone books or cancels one of your pages.</p>
+          <p class="muted">An email from your own Gmail whenever someone books or cancels one of your pages. While these are on, your pages also let people who can't find a time send you a message, with their time zone and when they'd like to meet.</p>
           ${m.emailError ? `<p class="error">The last email didn't send. Google said: “${esc(m.emailError)}”</p>` : ''}
           <div class="setting-row">
             ${m.canEmail
@@ -252,6 +254,28 @@
   }
 
   // ----- Feedback board (only on the copy that hosts it) -----
+
+  // Messages from people who couldn't find a time on one of your pages (each one was emailed to you too).
+  function requestsSection() {
+    const list = A.requests || [];
+    if (!list.length) return '';
+    const when = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    return `
+      <div class="dash-head"><h1>Couldn't find a time</h1></div>
+      <p class="muted dash-lede">Messages from people who couldn't find a time on your pages, from the last 30 days. Each one was emailed to you too.</p>
+      <section class="card">
+        ${list.map((r) => {
+          const reply = `mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent(`Re: ${r.title}`)}`;
+          const details = [when(r.createdAt), r.title, r.tz ? r.tz.replaceAll('_', ' ') : '', fmtDuration(r.duration)].filter(Boolean);
+          return `
+          <div class="fb-item">
+            <p><strong>${esc(r.name)}</strong> · <a href="${esc(reply)}">${esc(r.email)}</a></p>
+            <p class="ask-text">${esc(r.message)}</p>
+            <p class="hint">${details.map(esc).join(' · ')}</p>
+          </div>`;
+        }).join('')}
+      </section>`;
+  }
 
   function feedbackSection() {
     const fb = A.feedback;

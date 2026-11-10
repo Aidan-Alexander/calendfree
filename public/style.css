@@ -215,6 +215,9 @@ details summary { cursor: pointer; }
 
 /* Preferred times */
 .more { margin: 18px 0 0; }
+.times .more { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.form .tz { margin-top: 0; }
+.ask-text { white-space: pre-wrap; }
 .pref-row { grid-template-columns: max-content 150px max-content 150px; margin-top: 4px; }
 @media (max-width: 760px) { .pref-row { grid-template-columns: 1fr 1fr; } }
 
@@ -334,7 +337,8 @@ dialog.confirm h3 { margin-bottom: 10px; }
 .dv-half { border-top-style: dashed; opacity: 0.6; }
 .dv-ghost { border: 2px dashed var(--ink); background: rgba(255, 255, 255, 0.7); }
 .dv-pick { background: var(--ink); color: var(--bg); }
-.dv-actions { margin-top: 14px; min-height: 48px; }
+.dv-actions { margin-top: 14px; }
+.dv-actions:empty { display: none; } /* no gap under the day until a time is picked */
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* The chosen day on the left, the month to pick from on the right (on phones the month comes first) */

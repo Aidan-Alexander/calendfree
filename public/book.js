@@ -11,11 +11,13 @@
     month: '',
     day: '',
     start: null,
-    step: 'pick', // pick → form → done
+    step: 'pick', // pick → form → done, or pick → ask → asked ("can't find a time?")
     loading: true,
     error: '',
     notice: '',
     formError: '',
+    askError: '',
+    askResult: null,
     values: {},
     result: null,
     preferred: new Set(), // start times someone on the page prefers
@@ -168,9 +170,13 @@
 
   function times() {
     const list = S.byDay.get(S.day) || [];
-    const more = S.preferred.size > 0 && S.preferred.size < S.slots.length
-      ? `<p class="more"><button type="button" class="btn sm yellow" data-more>${S.showAll ? 'Show preferred times only' : 'See more availability'}</button></p>`
-      : '';
+    // Under the day: see the rest of the free times, and "can't find a time?" (a message to the page owner).
+    const buttons = [
+      S.preferred.size > 0 && S.preferred.size < S.slots.length
+        ? `<button type="button" class="btn sm yellow" data-more>${S.showAll ? 'Show preferred times only' : 'See more availability'}</button>` : '',
+      S.page.canAsk ? '<button type="button" class="btn sm" data-ask>Can\'t find a time?</button>' : '',
+    ].join('');
+    const more = buttons ? `<p class="more">${buttons}</p>` : '';
     // The key: most preferred (everyone prefers it), preferred (someone does), and extra availability once shown.
     const items = [
       S.most.size ? '<span class="swatch dark" aria-hidden="true"></span>Most preferred' : '',
@@ -259,16 +265,51 @@
     return inBand.filter((s) => s <= t).pop() ?? inBand[0];
   }
 
+  // "Can't find a time?": a message to the page owner, offered when it would reach them by email.
+  const askButton = (label) => `<button type="button" class="linkish" data-ask>${esc(label)}</button>`;
+
   function picker() {
     const notice = S.notice ? `<p class="error">${esc(S.notice)}</p>` : '';
+    const ask = S.page.canAsk;
     if (S.loading) return `<div class="picker one"><p class="loading">Finding times when everyone's free</p></div>`;
-    if (S.error === 'not_ready') return `<div class="picker one"><div class="empty">This page isn't taking bookings right now. Please get in touch another way.</div></div>`;
+    if (S.error === 'not_ready') return `<div class="picker one"><div class="empty">This page isn't taking bookings right now. ${ask ? `${askButton(`Send ${S.page.ownerName} a message`)}.` : 'Please get in touch another way.'}</div></div>`;
     if (S.error) return `<div class="picker one"><div class="empty">Couldn't load the free times. Please refresh to try again.</div></div>`;
     if (!S.byDay.size) {
       const shorter = S.duration > S.page.defaultDuration ? ` for a ${fmtDuration(S.duration)} meeting` : '';
-      return `<div class="picker one"><div class="empty">No free times in the coming weeks${esc(shorter)}. Please get in touch another way.</div></div>${tzRow()}`;
+      return `<div class="picker one"><div class="empty">No free times in the coming weeks${esc(shorter)}. ${ask ? `${askButton(`Ask ${S.page.ownerName} for more options`)}.` : 'Please get in touch another way.'}</div></div>${tzRow()}`;
     }
     return `${notice}<div class="picker"><div class="cal-col">${calendar()}</div><div class="times">${times()}</div></div>${tzRow()}`;
+  }
+
+  function askForm() {
+    const v = S.values;
+    return `
+      <div class="picker one">
+        <p class="when">Can't find a time?</p>
+        <p class="muted small">Tell ${esc(S.page.ownerName)} what would work for you, and you'll hear back by email. · <button type="button" class="linkish" data-back>Back to the times</button></p>
+        ${S.askError ? `<p class="error">${esc(S.askError)}</p>` : ''}
+        <form class="form" id="ask" novalidate>
+          <label class="field">Your name
+            <input type="text" name="name" autocomplete="name" maxlength="100" required value="${esc(v.name)}"></label>
+          <label class="field">Your email
+            <input type="email" name="email" autocomplete="email" required value="${esc(v.email)}"></label>
+          <label class="field">Your message
+            <span class="hint">For example: when you're trying to meet, and a link to your own scheduling page.</span>
+            <textarea name="message" maxlength="2000" required>${esc(v.message)}</textarea></label>
+          <div class="tz"><label for="ask-tz">Your time zone</label><select id="ask-tz" name="tz">${timeZoneOptions(S.tz, { until: S.slots[S.slots.length - 1] || Date.now() + 30 * 86_400_000 })}</select></div>
+          <div class="hp" aria-hidden="true"><label>Website <input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div><button class="btn green" type="submit">Send</button></div>
+        </form>
+      </div>`;
+  }
+
+  function asked() {
+    const r = S.askResult;
+    return `
+      <div class="done-mark" aria-hidden="true">✓</div>
+      <h1>${r.demo ? 'That would be sent' : 'Message sent'}</h1>
+      <p>${r.demo ? "It's the demo, so nothing was sent." : `${esc(S.page.ownerName)} will get back to you at <strong>${esc(r.email)}</strong>.`}</p>
+      <p class="muted small"><button type="button" class="linkish" data-back>Back to the times</button></p>`;
   }
 
   function form() {
@@ -318,7 +359,8 @@
 
   function render() {
     if (S.step === 'done') view.innerHTML = done();
-    else view.innerHTML = header() + (S.step === 'form' ? form() : picker());
+    else if (S.step === 'asked') view.innerHTML = asked();
+    else view.innerHTML = header() + (S.step === 'form' ? form() : S.step === 'ask' ? askForm() : picker());
     const scroller = view.querySelector('.dv-scroll');
     const first = view.querySelector('.dv-pick') || view.querySelector('.dv-band');
     if (scroller && first) scroller.scrollTop = Math.max(0, first.offsetTop - 40);
@@ -397,6 +439,11 @@
       S.pick = null;
       group();
       render();
+    } else if ('ask' in el.dataset) {
+      S.step = 'ask';
+      S.askError = '';
+      render();
+      view.querySelector(S.values.name && S.values.email ? 'textarea[name=message]' : 'input[name=name]')?.focus();
     } else if ('back' in el.dataset) {
       S.step = 'pick';
       render();
@@ -427,6 +474,13 @@
   });
 
   view.addEventListener('change', (e) => {
+    if (e.target.id === 'ask-tz') {
+      // Choosing a zone in the message form also sets the times shown, without redrawing what they've typed.
+      S.tz = e.target.value;
+      local.set('overlap.tz', S.tz);
+      group();
+      return;
+    }
     if (e.target.id !== 'tz') return;
     S.tz = e.target.value;
     local.set('overlap.tz', S.tz);
@@ -436,9 +490,10 @@
 
   view.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (e.target.id === 'ask') return sendAsk(e.target);
     const formEl = e.target;
     const v = Object.fromEntries(new FormData(formEl));
-    S.values = v;
+    S.values = { ...S.values, ...v };
     const problem = !v.name.trim()
       ? 'Please add your name.'
       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())
@@ -475,6 +530,41 @@
     S.formError = r.message || 'Something went wrong. Please try again.';
     render();
   });
+
+  // Sends the "can't find a time?" message to the page owner.
+  async function sendAsk(formEl) {
+    const v = Object.fromEntries(new FormData(formEl));
+    S.values = { ...S.values, ...v };
+    const problem = !v.name.trim()
+      ? 'Please add your name.'
+      : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())
+        ? 'Please check your email address.'
+        : !v.message.trim()
+          ? 'Please add a message.'
+          : '';
+    if (problem) {
+      S.askError = problem;
+      render();
+      return;
+    }
+    const button = formEl.querySelector('button[type=submit]');
+    button.disabled = true;
+    button.textContent = 'Sending';
+    const r = await api('/api/public/ask', {
+      method: 'POST',
+      body: { ...v, slug: S.page.slug, duration: S.duration },
+    });
+    if (r.ok) {
+      S.askResult = { ...r, email: v.email.trim() };
+      S.values.message = '';
+      S.step = 'asked';
+      render();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    S.askError = r.message || 'Something went wrong. Please try again.';
+    render();
+  }
 
   boot();
 })();

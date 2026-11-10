@@ -15,6 +15,7 @@ It also:
 - adds a Google Meet link (or a place of your choosing);
 - sends everyone a normal Google Calendar invite from your calendar;
 - gives the person booking a link to cancel or move it;
+- lets someone who can't find a time send you a message, with their time zone, when they're trying to meet and a link to their own scheduling page, if they have one (when your email notifications are on);
 - shows times in the booker's time zone. The picker starts with a short list of well-known cities, one per real choice (cities whose clocks match on every bookable day share an option), then every location.
 
 ## How it reads people's calendars
@@ -110,7 +111,7 @@ With `OVERLAP_FAKE_GOOGLE=1` (the default in `.env.example`), calendars are made
 - **Working hours are per person**, in their own time zone. A page can swap in different hours for you; the other people on it keep theirs.
 - **Google only, for now.** Outlook and iCloud calendars aren't supported. Pull requests are welcome.
 - **Who sees what:** anyone with a page's link sees its free times and the first names of the people on it. Never email addresses, never event details.
-- **What's kept about bookings:** the person's name, email, what the meeting's for, any guests and the time, so the "cancel or move" link works. A daily clean-up (`netlify/functions/cleanup.mjs`) deletes each record 30 days after the meeting. The meeting itself stays in the host's Google Calendar.
+- **What's kept about bookings:** the person's name, email, what the meeting's for, any guests and the time, so the "cancel or move" link works. A daily clean-up (`netlify/functions/cleanup.mjs`) deletes each record 30 days after the meeting. The meeting itself stays in the host's Google Calendar. Messages from people who couldn't find a time (their name, email, time zone and message) are deleted 30 days after they're sent.
 - **Your organisation's look:** a copy can have its own logo, colours and fonts. See `themes/README.md`.
 
 ## How it's built

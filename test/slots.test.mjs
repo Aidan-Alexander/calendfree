@@ -290,3 +290,21 @@ test('booking records are deleted 30 days after the meeting', async () => {
   assert.equal(await deleteOldBookings({ now, db }), 2);
   assert.deepEqual([...data.keys()].sort(), ['bookings/future', 'bookings/recent']);
 });
+
+test("\"can't find a time\" messages are deleted 30 days after they were sent", async () => {
+  const { deleteOldRequests } = await import('../lib/cleanup.mjs');
+  const now = Date.parse('2026-12-31T12:00:00Z');
+  const day = 86_400_000;
+  const data = new Map([
+    ['requests/a@x.org/old', { createdAt: new Date(now - 31 * day).toISOString() }], // deleted
+    ['requests/a@x.org/new', { createdAt: new Date(now - 2 * day).toISOString() }], // kept
+    ['bookings/other', { end: now - 90 * day }], // not a message: left alone here
+  ]);
+  const db = {
+    listKeys: async (prefix) => [...data.keys()].filter((k) => k.startsWith(prefix)),
+    getJSON: async (k) => data.get(k),
+    remove: async (k) => data.delete(k),
+  };
+  assert.equal(await deleteOldRequests({ now, db }), 1);
+  assert.deepEqual([...data.keys()].sort(), ['bookings/other', 'requests/a@x.org/new']);
+});
