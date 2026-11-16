@@ -274,6 +274,7 @@ details summary { cursor: pointer; }
 .who-others { display: grid; gap: 14px; }
 .cc-add { justify-self: start; }
 
+.purpose-rule { margin-top: 14px; }
 .grid-rules { display: grid; grid-template-columns: repeat(3, minmax(0, 200px)); gap: 16px; align-items: end; }
 @media (max-width: 760px) { .grid-rules { grid-template-columns: 1fr; } }
 

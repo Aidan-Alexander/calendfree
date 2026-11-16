@@ -11,7 +11,7 @@ It does three things the free versions of the big schedulers don't:
 3. **Any length, from the link.** Pages have a usual length, which you pick at setup and can change per page, and adding a number to the link books a different one: `…/interviews#75` books 75 minutes, and `#1h30` works too.
 
 It also:
-- asks the person booking for the purpose of the meeting (required) and puts it at the top of the invite;
+- asks the person booking for the purpose of the meeting and puts it at the top of the invite. It's required unless you make it optional, for all your pages (a booking rule in Your settings) or for one page;
 - adds a Google Meet link (or a place of your choosing);
 - sends everyone a normal Google Calendar invite from your calendar;
 - gives the person booking a link to cancel or move it;

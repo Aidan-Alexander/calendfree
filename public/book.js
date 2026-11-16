@@ -327,8 +327,8 @@
           <label class="field">Your email
             <input type="email" name="email" autocomplete="email" required value="${esc(v.email)}"></label>
           <label class="field">Purpose of the meeting
-            <span class="hint">What would you like to cover?</span>
-            <textarea name="purpose" maxlength="2000" required>${esc(v.purpose)}</textarea></label>
+            <span class="hint">${S.page.requirePurpose === false ? 'Optional. ' : ''}What would you like to cover?</span>
+            <textarea name="purpose" maxlength="2000"${S.page.requirePurpose === false ? '' : ' required'}>${esc(v.purpose)}</textarea></label>
           ${S.page.allowGuests ? `<label class="field">Anyone else to invite?
             <span class="hint">Optional. Email addresses, separated by commas.</span>
             <input type="text" name="guests" value="${esc(v.guests)}"></label>` : ''}
@@ -498,7 +498,7 @@
       ? 'Please add your name.'
       : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email.trim())
         ? 'Please check your email address.'
-        : !v.purpose.trim()
+        : !v.purpose.trim() && S.page.requirePurpose !== false
           ? 'Please say what the meeting is for.'
           : '';
     if (problem) {

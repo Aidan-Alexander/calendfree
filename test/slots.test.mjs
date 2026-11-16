@@ -179,7 +179,9 @@ test('booking rules: pages use the usual rules unless they override them', () =>
   const { page: plain } = normalisePage({ ...page(), slug: 'a', rules: null }, 'me@example.org');
   assert.equal(plain.rules, null);
   const { page: own } = normalisePage({ ...page(), slug: 'b', rules: { bufferMinutes: 10, minNoticeHours: 24, daysAhead: 7 } }, 'me@example.org');
-  assert.deepEqual(own.rules, { bufferMinutes: 10, minNoticeHours: 24, daysAhead: 7 });
+  assert.deepEqual(own.rules, { bufferMinutes: 10, minNoticeHours: 24, daysAhead: 7, requirePurpose: true }); // required unless unticked
+  const { page: relaxed } = normalisePage({ ...page(), slug: 'e', rules: { bufferMinutes: 0, minNoticeHours: 4, daysAhead: 21, requirePurpose: false } }, 'me@example.org');
+  assert.equal(relaxed.rules.requirePurpose, false);
   const { page: different } = normalisePage({ ...page(), slug: 'c', hoursMode: 'narrow', hours: { ...DEFAULT_HOURS } }, 'me@example.org');
   assert.equal(different.hoursMode, 'replace'); // older 'narrow' pages become 'Different hours'
   const { page: working } = normalisePage({ ...page(), slug: 'd', hoursMode: 'working', hours: { ...DEFAULT_HOURS } }, 'me@example.org');

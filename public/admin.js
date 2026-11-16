@@ -606,6 +606,7 @@
     const own = p.rules || (legacy ? Object.fromEntries(RULE_KEYS.map((k) => [k, p[k] ?? RULE_DEFAULTS[k]])) : null);
     f.elements.rulesOwn.value = own ? '1' : '';
     if (own) for (const k of RULE_KEYS) set(k, own[k]);
+    if (own) f.elements.requirePurpose.checked = own.requirePurpose !== false;
     set('dailyCap', p.dailyCap || '');
     // Preferred times: null follows the owner's usual setting; true/false are this page's own; an older page may
     // still have its own range ('legacy').
@@ -653,7 +654,7 @@
         defaultDuration: lengths[0] || 30,
         durations: lengths.length > 1 ? lengths.join(',') : '',
         hoursMode, hours, timezone: A.me.timezone || browserTz,
-        rules: f.elements.rulesOwn.value ? Object.fromEntries(RULE_KEYS.map((k) => [k, Number(v(k))])) : null,
+        rules: f.elements.rulesOwn.value ? readRules(f) : null,
         dailyCap: Number(v('dailyCap')) || 0,
         preferred: f.elements.prefOwn.value === 'legacy' ? A.editing.page.preferred
           : f.elements.prefOwn.value ? f.querySelector('input[name=prefMode]:checked')?.value === 'on' : null,
@@ -692,12 +693,18 @@
   }
 
   const RULE_KEYS = ['bufferMinutes', 'minNoticeHours', 'daysAhead'];
-  const RULE_DEFAULTS = { bufferMinutes: 0, minNoticeHours: 4, daysAhead: 21 };
+  const RULE_DEFAULTS = { bufferMinutes: 0, minNoticeHours: 4, daysAhead: 21, requirePurpose: true };
+  // The rules from a form: the three numbers, and whether people must say what the meeting is for.
+  const readRules = (form) => ({
+    ...Object.fromEntries(RULE_KEYS.map((k) => [k, Number(form.elements[k].value)])),
+    requirePurpose: form.elements.requirePurpose.checked,
+  });
 
   function rulesText(r = RULE_DEFAULTS) {
     const gap = r.bufferMinutes ? `a ${r.bufferMinutes}-minute gap around other meetings` : 'no gap around other meetings';
     const notice = r.minNoticeHours ? `at least ${r.minNoticeHours} hour${r.minNoticeHours === 1 ? '' : 's'}' notice` : 'no minimum notice';
-    return `${gap}, ${notice}, bookable up to ${r.daysAhead} days ahead`;
+    const purpose = r.requirePurpose === false ? "saying what it's for is optional" : "people must say what it's for";
+    return `${gap}, ${notice}, bookable up to ${r.daysAhead} days ahead; ${purpose}`;
   }
 
   function rulesFields(r = RULE_DEFAULTS) {
@@ -705,7 +712,8 @@
         <label class="field">Gap around other meetings <span class="hint">minutes</span><input type="number" name="bufferMinutes" min="0" max="120" value="${r.bufferMinutes}"></label>
         <label class="field">Minimum notice <span class="hint">hours</span><input type="number" name="minNoticeHours" min="0" max="720" value="${r.minNoticeHours}"></label>
         <label class="field">Bookable up to <span class="hint">days ahead</span><input type="number" name="daysAhead" min="1" max="90" value="${r.daysAhead}"></label>
-      </div>`;
+      </div>
+      <label class="check purpose-rule"><input type="checkbox" name="requirePurpose"${r.requirePurpose === false ? '' : ' checked'}> <span>People must say what the meeting is for</span></label>`;
   }
 
   // Preferred times only when ticked; the "somewhere else" box only when that's picked.
@@ -988,7 +996,7 @@
       window.scrollTo({ top: 0 });
       letThemKnow(r.page.slug, (r.page.editors || []).filter((x) => !editorsBefore.has(x)));
     } else if (e.target.id === 'rules') {
-      const body = { rules: Object.fromEntries(RULE_KEYS.map((k) => [k, Number(e.target.elements[k].value)])) };
+      const body = { rules: readRules(e.target) };
       const r = await api('/api/settings', { method: 'PUT', body });
       if (r._status !== 200) return alert((r.errors || ['Could not save those rules.']).join('\n'));
       A.me.rules = r.rules;
