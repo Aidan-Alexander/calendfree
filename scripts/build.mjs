@@ -38,13 +38,25 @@ if (theme) {
   if (existsSync(join(dir, 'icon.png'))) iconTag = `<link rel="icon" href="${base}/theme/icon.png">`;
 }
 
+// The picture link previews show (Slack, WhatsApp, LinkedIn...): themes/<theme>/og.png if there is one, else public/og.png.
+// Previews need a full address, so it's built from the first PUBLIC_URL; without one it falls back to a relative path.
+const siteUrl = String(process.env.PUBLIC_URL || '').split(',')[0].trim().replace(/\/+$/, '') || base;
+const ogImage = `${siteUrl}/${theme && existsSync(join(root, 'themes', theme, 'og.png')) ? 'theme/og.png' : 'og.png'}`;
+const ogTags = [
+  `<meta property="og:image" content="${ogImage}">`,
+  '<meta property="og:image:width" content="1200">',
+  '<meta property="og:image:height" content="630">',
+  '<meta property="og:image:alt" content="A calendar day with free times in green and a meeting time picked">',
+  '<meta name="twitter:card" content="summary_large_image">',
+].join('\n');
+
 // Put the base path into every link and fetch, and the theme (if any) into every page.
 const walk = (dir) => readdirSync(dir).flatMap((f) => (statSync(join(dir, f)).isDirectory() ? walk(join(dir, f)) : [join(dir, f)]));
 for (const file of walk(out)) {
   if (!['.html', '.js', '.css'].includes(extname(file))) continue;
   let text = readFileSync(file, 'utf8').replaceAll('{{BASE}}', base).replaceAll('{{FEEDBACK_URL}}', feedbackUrl);
   if (extname(file) === '.html') {
-    text = text.replaceAll('{{THEME}}', themeTags).replaceAll('{{LOGO}}', logoTag);
+    text = text.replaceAll('{{THEME}}', themeTags).replaceAll('{{LOGO}}', logoTag).replace('</head>', `${ogTags}\n</head>`);
     if (iconTag) text = text.replace(/<link rel="icon"[^\n]*/, iconTag); // the whole line: the emoji icon contains '>'
   }
   writeFileSync(file, text);
